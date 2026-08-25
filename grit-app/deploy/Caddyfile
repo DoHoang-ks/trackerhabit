@@ -1,0 +1,9 @@
+# Caddy tự động cấp & gia hạn HTTPS (Let's Encrypt) cho {$DOMAIN}.
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy app:3000
+	header {
+		# ẩn thông tin server
+		-Server
+	}
+}

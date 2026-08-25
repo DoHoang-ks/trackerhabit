@@ -1,0 +1,13 @@
+{
+  "name": "Grit Tracker",
+  "short_name": "Grit",
+  "description": "Theo dõi thói quen — giữ chuỗi bằng tâm lý học hành vi",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d1017",
+  "theme_color": "#ea580c",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

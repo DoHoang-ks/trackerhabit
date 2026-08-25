@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Artifact",
+      "WebSearch",
+      "WebFetch(domain:gritapp.net)",
+      "WebFetch(domain:screensdesign.com)",
+      "WebFetch(domain:www.appshot.gallery)",
+      "WebFetch(domain:apps.apple.com)"
+    ]
+  }
+}

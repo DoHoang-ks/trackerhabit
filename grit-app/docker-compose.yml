@@ -1,0 +1,17 @@
+# Postgres cho phát triển cục bộ. `docker compose up -d` rồi dùng DATABASE_URL trong .env.example.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: grit-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: grit
+      POSTGRES_PASSWORD: grit
+      POSTGRES_DB: grit
+    ports:
+      - "5432:5432"
+    volumes:
+      - grit-db-data:/var/lib/postgresql/data
+
+volumes:
+  grit-db-data:

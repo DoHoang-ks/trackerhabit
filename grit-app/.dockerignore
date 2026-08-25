@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+.env
+.env.local
+.pgdata
+.pgdata-e2e
+.npmcache
+*.log
+.DS_Store
+scripts/local-db.ts
+scripts/e2e-local.ts

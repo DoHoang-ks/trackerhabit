@@ -1,0 +1,196 @@
+// Grit Tracker — Prisma schema (PostgreSQL)
+// Bám sát grit-tracker-schema.md. Streak/freeze tính ở tầng app (Prisma không dùng DB trigger).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum HabitType {
+  checkbox
+  quantity
+  timer
+}
+
+enum GoalStatus {
+  active
+  paused
+  archived
+  completed
+}
+
+enum LogStatus {
+  completed
+  partial
+  missed
+  frozen
+  not_due
+}
+
+enum LogSource {
+  manual
+  auto
+}
+
+enum ScheduleType {
+  daily
+  weekly_days
+}
+
+enum FreezeReason {
+  earned_streak
+  spent_auto
+  vacation_grant
+  admin_adjust
+}
+
+model User {
+  id           BigInt   @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  displayName  String?  @map("display_name")
+  timezone     String   @default("Asia/Ho_Chi_Minh")
+  dayCutoff    String   @default("00:00") @map("day_cutoff") // "HH:mm"
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+
+  goals       Goal[]
+  habits      Habit[]
+  logs        Log[]
+  reflections Reflection[]
+  freezeLogs  FreezeLedger[]
+
+  @@map("users")
+}
+
+model Goal {
+  id               BigInt     @id @default(autoincrement())
+  userId           BigInt     @map("user_id")
+  title            String
+  description      String?
+  status           GoalStatus @default(active)
+  progressBaseline Decimal    @default(5) @map("progress_baseline") @db.Decimal(5, 2)
+  progressPercent  Decimal    @default(0) @map("progress_percent") @db.Decimal(5, 2)
+  startDate        DateTime?  @map("start_date") @db.Date
+  targetDate       DateTime?  @map("target_date") @db.Date
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @default(now()) @updatedAt @map("updated_at")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habits Habit[]
+
+  @@index([userId])
+  @@map("goals")
+}
+
+model Habit {
+  id                    BigInt    @id @default(autoincrement())
+  goalId                BigInt    @map("goal_id")
+  userId                BigInt    @map("user_id") // denormalized cho auth/IDOR nhanh
+  name                  String
+  type                  HabitType @default(checkbox)
+  isFocus               Boolean   @default(false) @map("is_focus")
+  color                 String    @default("#ea580c")
+  icon                  String    @default("🔥")
+  weeklyMissAllowance   Int       @default(0) @map("weekly_miss_allowance") // số lần được phép bỏ lỡ/tuần mà vẫn giữ chuỗi
+  archivedAt            DateTime? @map("archived_at")
+
+  // Trạng thái streak denormalized
+  currentStreak         Int       @default(0) @map("current_streak")
+  longestStreak         Int       @default(0) @map("longest_streak")
+  lastCompletedDate     DateTime? @map("last_completed_date") @db.Date
+  lastEvaluatedDate     DateTime? @map("last_evaluated_date") @db.Date
+  freezeBalance         Int       @default(0) @map("freeze_balance")       // 0..3
+  consecutiveFreezeDays Int       @default(0) @map("consecutive_freeze_days")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  goal       Goal            @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schedules  HabitSchedule[]
+  logs       Log[]
+  freezeLogs FreezeLedger[]
+
+  @@index([goalId])
+  @@index([userId])
+  @@map("habits")
+}
+
+model HabitSchedule {
+  id            BigInt       @id @default(autoincrement())
+  habitId       BigInt       @map("habit_id")
+  scheduleType  ScheduleType @default(daily) @map("schedule_type")
+  weekdaysMask  Int          @default(127) @map("weekdays_mask") // bit0=Mon .. bit6=Sun; 127 = mọi ngày
+  targetValue   Decimal?     @map("target_value") @db.Decimal(10, 2)
+  targetUnit    String?      @map("target_unit")
+  minPercent    Decimal      @default(100) @map("min_percent") @db.Decimal(5, 2)
+  effectiveFrom DateTime     @map("effective_from") @db.Date
+  effectiveTo   DateTime?    @map("effective_to") @db.Date
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  habit Habit @relation(fields: [habitId], references: [id], onDelete: Cascade)
+
+  @@index([habitId, effectiveFrom])
+  @@map("habit_schedules")
+}
+
+model Log {
+  id           BigInt    @id @default(autoincrement())
+  habitId      BigInt    @map("habit_id")
+  userId       BigInt    @map("user_id") // denormalized cho IDOR
+  loggedDate   DateTime  @map("logged_date") @db.Date
+  status       LogStatus
+  value        Decimal?  @db.Decimal(10, 2)
+  durationSecs Int?      @map("duration_secs")
+  completedAt  DateTime? @map("completed_at")
+  source       LogSource @default(manual)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  habit       Habit          @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  freezeLinks FreezeLedger[]
+
+  @@unique([habitId, loggedDate]) // Mục VI.2: 1 log/ngày, idempotency
+  @@index([userId, loggedDate])
+  @@index([habitId, loggedDate])
+  @@map("logs")
+}
+
+model FreezeLedger {
+  id           BigInt       @id @default(autoincrement())
+  habitId      BigInt       @map("habit_id")
+  userId       BigInt       @map("user_id")
+  delta        Int // +1 earned, -1 spent
+  reason       FreezeReason
+  relatedLogId BigInt?      @map("related_log_id")
+  balanceAfter Int          @map("balance_after")
+  createdAt    DateTime     @default(now()) @map("created_at")
+
+  habit      Habit @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  user       User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  relatedLog Log?  @relation(fields: [relatedLogId], references: [id], onDelete: SetNull)
+
+  @@index([habitId, createdAt])
+  @@map("freeze_ledger")
+}
+
+model Reflection {
+  id             BigInt   @id @default(autoincrement())
+  userId         BigInt   @map("user_id")
+  goalId         BigInt?  @map("goal_id")
+  weekStart      DateTime @map("week_start") @db.Date
+  blockerText    String?  @map("blocker_text")
+  adjustmentText String?  @map("adjustment_text")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, goalId, weekStart])
+  @@map("reflections")
+}

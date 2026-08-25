@@ -1,0 +1,41 @@
+{
+  "name": "grit-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "seed": "tsx prisma/seed.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx scripts/smoke.ts",
+    "test:integration": "tsx scripts/integration.ts",
+    "test:e2e": "tsx scripts/e2e-local.ts",
+    "db:local": "tsx scripts/local-db.ts",
+    "serve": "tsx scripts/serve-local.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.19.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "luxon": "^3.5.0",
+    "next": "^14.2.7",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/luxon": "^3.4.2",
+    "@types/node": "^20.14.15",
+    "@types/react": "^18.3.4",
+    "embedded-postgres": "^18.4.0-beta.17",
+    "prisma": "^5.19.0",
+    "tsx": "^4.17.0",
+    "typescript": "^5.5.4"
+  }
+}
