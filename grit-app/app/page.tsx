@@ -398,6 +398,7 @@ function FeedCard({ ev, token }: { ev: any; token: string }) {
   const [comments, setComments] = useState<any[] | null>(null);
   const [cc, setCc] = useState<number>(ev.comment_count);
   const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
 
   async function react(emoji: string) {
     const prev = mine;
@@ -412,9 +413,13 @@ function FeedCard({ ev, token }: { ev: any; token: string }) {
   async function loadComments() { const r = await apiCall(`/feed/${ev.id}/comments`, { token }); setComments(r.json?.data || []); }
   function toggleComments() { const n = !showC; setShowC(n); if (n && comments === null) loadComments(); }
   async function addComment() {
-    if (!text.trim()) return;
-    await apiCall(`/feed/${ev.id}/comments`, { method: "POST", token, body: { text } });
-    setText(""); setCc((c) => c + 1); loadComments();
+    const t = text.trim();
+    if (!t || sending) return;
+    setSending(true); setText("");
+    try {
+      await apiCall(`/feed/${ev.id}/comments`, { method: "POST", token, body: { text: t } });
+      setCc((c) => c + 1); await loadComments();
+    } finally { setSending(false); }
   }
 
   const when = new Date(ev.created_at).toLocaleDateString("vi-VN", { day: "numeric", month: "short" });
@@ -444,8 +449,8 @@ function FeedCard({ ev, token }: { ev: any; token: string }) {
             </div>
           )}
           <div className="cmt-input">
-            <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Chúc mừng / hỏi thăm…" onKeyDown={(e) => e.key === "Enter" && addComment()} />
-            <button onClick={addComment}>Gửi</button>
+            <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Chúc mừng / hỏi thăm…" onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) addComment(); }} />
+            <button onClick={addComment} disabled={sending}>Gửi</button>
           </div>
         </>
       )}
@@ -464,6 +469,7 @@ function FeedView({ token }: { token: string }) {
 function ChatView({ friend, token, onBack }: { friend: any; token: string; onBack: () => void }) {
   const [msgs, setMsgs] = useState<any[]>([]);
   const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
   const lastId = useRef<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -483,10 +489,13 @@ function ChatView({ friend, token, onBack }: { friend: any; token: string; onBac
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
 
   async function send() {
-    if (!text.trim()) return;
-    const t = text; setText("");
-    await apiCall(`/messages/${friend.id}`, { method: "POST", token, body: { text: t } });
-    poll();
+    const t = text.trim();
+    if (!t || sending) return;
+    setSending(true); setText("");
+    try {
+      await apiCall(`/messages/${friend.id}`, { method: "POST", token, body: { text: t } });
+      await poll();
+    } finally { setSending(false); }
   }
 
   return (
@@ -501,8 +510,8 @@ function ChatView({ friend, token, onBack }: { friend: any; token: string; onBac
         <div ref={endRef} />
       </div>
       <div className="chat-input">
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Nhắn tin…" onKeyDown={(e) => e.key === "Enter" && send()} />
-        <button onClick={send}>Gửi</button>
+        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Nhắn tin…" onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) send(); }} />
+        <button onClick={send} disabled={sending}>Gửi</button>
       </div>
     </>
   );
@@ -540,7 +549,7 @@ function FriendsManage({ token, me }: { token: string; me: any }) {
         <span style={{ fontSize: 11, color: "var(--muted)" }}>chia sẻ để kết bạn</span>
       </div>
       <div className="cmt-input" style={{ marginBottom: 12 }}>
-        <input value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="Nhập @handle bạn bè" onKeyDown={(e) => e.key === "Enter" && add()} />
+        <input value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="Nhập @handle bạn bè" onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) add(); }} />
         <button onClick={add}>Kết bạn</button>
       </div>
       {msg && <div className="mood-note-saved" style={{ marginBottom: 10 }}>{msg}</div>}
@@ -597,6 +606,7 @@ function AuthView({ onAuthed }: { onAuthed: (token: string) => void }) {
   const [busy, setBusy] = useState(false);
 
   async function submit() {
+    if (busy) return;
     setErr(""); setBusy(true);
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Ho_Chi_Minh";
     const path = mode === "login" ? "/auth/login" : "/auth/register";
@@ -615,7 +625,7 @@ function AuthView({ onAuthed }: { onAuthed: (token: string) => void }) {
         <label>Email</label>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" />
         <label>Mật khẩu</label>
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" onKeyDown={(e) => e.key === "Enter" && submit()} />
+        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) submit(); }} />
         <button className="btn" onClick={submit} disabled={busy}>{busy ? "Đang xử lý…" : mode === "login" ? "Đăng nhập" : "Tạo tài khoản"}</button>
         <div className="err">{err}</div>
         <div className="toggle">
