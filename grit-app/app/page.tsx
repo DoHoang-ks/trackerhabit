@@ -37,7 +37,7 @@ export default function App() {
   const [view, setView] = useState<"loading" | "auth" | "onboarding" | "app">("loading");
   const [token, setToken] = useState<string | null>(null);
   const [me, setMe] = useState<any>(null);
-  const [tab, setTab] = useState<"today" | "habits" | "stats">("today");
+  const [tab, setTab] = useState<"today" | "habits" | "stats" | "awards">("today");
 
   useEffect(() => { if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {}); }, []);
 
@@ -76,6 +76,7 @@ export default function App() {
             {tab === "today" && <TodayTab token={token} goHabits={() => setTab("habits")} />}
             {tab === "habits" && <HabitsTab token={token} />}
             {tab === "stats" && <StatsTab token={token} />}
+            {tab === "awards" && <AwardsTab token={token} />}
           </div>
           <nav className="tabbar">
             <button className={tab === "today" ? "on" : ""} onClick={() => setTab("today")}>
@@ -86,6 +87,9 @@ export default function App() {
             </button>
             <button className={tab === "stats" ? "on" : ""} onClick={() => setTab("stats")}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18M7 14l4-4 3 3 5-6" /></svg>Thống kê
+            </button>
+            <button className={tab === "awards" ? "on" : ""} onClick={() => setTab("awards")}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4zM7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3" /></svg>Thành tựu
             </button>
           </nav>
         </>
@@ -472,6 +476,46 @@ function HabitEdit({ token, id, onClose }: { token: string; id: string; onClose:
             <button className="linkbtn" style={{ marginTop: 10, display: "block", marginInline: "auto" }} onClick={() => setConfirmDel(false)}>Không</button>
           </div>
         )}
+      </div>
+    </>
+  );
+}
+
+/* ---------------- Achievements ---------------- */
+function AwardsTab({ token }: { token: string }) {
+  const [a, setA] = useState<any>(null);
+  useEffect(() => { apiCall("/achievements", { token }).then((r) => setA(r.json)); }, [token]);
+
+  if (!a) return <div className="center-screen">Đang tải…</div>;
+  const pct = a.xp_to_next ? Math.min(100, (a.xp_in_level / a.xp_to_next) * 100) : 100;
+
+  return (
+    <>
+      <div className="section-title">Thành tựu</div>
+      <div className="level-card">
+        <div className="level-badge"><small>LEVEL</small>{a.level}</div>
+        <div className="level-info">
+          <b>Cấp {a.level}</b>
+          <div className="xpbar"><i style={{ width: `${pct}%` }} /></div>
+          <small>{a.xp_in_level}/{a.xp_to_next} XP → cấp {a.level + 1} · tổng {a.total_completions} lượt</small>
+        </div>
+      </div>
+      <div className="award-summary">Đã mở khóa <b>{a.unlocked_count}/{a.total_badges}</b> huy hiệu</div>
+      <div className="badge-grid">
+        {a.badges.map((b: any) => (
+          <div className={`badge${b.unlocked ? "" : " locked"}`} key={b.key}>
+            {b.unlocked && <span className="check-tick">✓</span>}
+            <div className="bic">{b.icon}</div>
+            <b>{b.title}</b>
+            <div className="bd">{b.desc}</div>
+            {!b.unlocked && (
+              <>
+                <div className="bprog"><i style={{ width: `${(b.value / b.target) * 100}%` }} /></div>
+                <div className="bd" style={{ fontFamily: '"IBM Plex Mono", monospace' }}>{b.value}/{b.target}</div>
+              </>
+            )}
+          </div>
+        ))}
       </div>
     </>
   );

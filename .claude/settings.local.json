@@ -6,7 +6,9 @@
       "WebFetch(domain:gritapp.net)",
       "WebFetch(domain:screensdesign.com)",
       "WebFetch(domain:www.appshot.gallery)",
-      "WebFetch(domain:apps.apple.com)"
+      "WebFetch(domain:apps.apple.com)",
+      "WebFetch(domain:habit-streak.com)",
+      "WebFetch(domain:guul.games)"
     ]
   }
 }

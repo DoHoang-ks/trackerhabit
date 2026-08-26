@@ -303,6 +303,40 @@ input:focus, select:focus { outline: 2px solid var(--ember); outline-offset: 1px
 .hy-legend { display: flex; align-items: center; gap: 6px; justify-content: flex-end; margin-top: 8px; font-size: 9px; color: var(--muted); font-family: "IBM Plex Mono", monospace; }
 .hy-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; border: 1px solid var(--line); }
 
+/* ===== Achievements ===== */
+.level-card {
+  display: flex; align-items: center; gap: 16px; padding: 18px; border-radius: 18px; margin-bottom: 8px;
+  background: linear-gradient(150deg, var(--ember), var(--ember-deep)); color: #fff;
+  box-shadow: 0 14px 30px -16px var(--ember);
+}
+.level-badge {
+  width: 60px; height: 60px; border-radius: 16px; flex: none; display: grid; place-items: center;
+  background: rgba(255,255,255,.18); font-family: "Archivo", sans-serif; font-weight: 800; font-size: 24px;
+}
+.level-badge small { display: block; font-size: 9px; font-weight: 600; letter-spacing: .1em; opacity: .85; }
+.level-info { flex: 1; }
+.level-info b { font-family: "Archivo", sans-serif; font-weight: 800; font-size: 18px; }
+.level-info .xpbar { height: 8px; border-radius: 999px; background: rgba(255,255,255,.25); margin-top: 8px; overflow: hidden; }
+.level-info .xpbar i { display: block; height: 100%; background: #fff; border-radius: 999px; }
+.level-info small { font-size: 11.5px; opacity: .9; display: block; margin-top: 6px; font-family: "IBM Plex Mono", monospace; }
+
+.award-summary { text-align: center; color: var(--muted); font-size: 13px; margin: 14px 0 12px; }
+.award-summary b { color: var(--ember); font-family: "Archivo", sans-serif; }
+
+.badge-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.badge {
+  border: 1px solid var(--line); border-radius: 15px; padding: 14px; background: var(--panel);
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; position: relative;
+}
+.badge.locked { opacity: .55; }
+.badge .bic { font-size: 30px; filter: none; }
+.badge.locked .bic { filter: grayscale(1); }
+.badge b { font-size: 13px; }
+.badge .bd { font-size: 11px; color: var(--muted); line-height: 1.35; }
+.badge .bprog { width: 100%; height: 5px; border-radius: 999px; background: var(--panel-2); overflow: hidden; margin-top: 4px; }
+.badge .bprog i { display: block; height: 100%; background: var(--ember); border-radius: 999px; }
+.badge .check-tick { position: absolute; top: 8px; right: 8px; color: var(--good); font-size: 13px; }
+
 /* Reflection */
 textarea {
   width: 100%; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 12px;

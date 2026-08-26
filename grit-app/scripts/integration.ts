@@ -132,6 +132,10 @@ async function main() {
   check("overview 200 gộp habit", r.status === 200 && r.json?.active_habits >= 1 && Array.isArray(r.json?.days), r.json);
   check("overview this_week_done >= 1", (r.json?.this_week_done ?? 0) >= 1, r.json?.this_week_done);
 
+  r = await api("/achievements", { token });
+  check("achievements 200 + level>=1", r.status === 200 && r.json?.level >= 1 && Array.isArray(r.json?.badges), r.json);
+  check("badge first_step mở khóa sau check-in", r.json?.badges?.find((b: any) => b.key === "first_step")?.unlocked === true, r.json?.unlocked_count);
+
   console.log("\nUndo");
   r = await api(`/habits/${habitId}/logs/${today}`, { method: "DELETE", token });
   check("undo 200", r.status === 200, r.json);
