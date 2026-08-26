@@ -28,7 +28,7 @@ async function main() {
   }
   console.log("✅ Postgres local sẵn sàng:", DATABASE_URL);
 
-  execSync("npx prisma db push --skip-generate", {
+  execSync("npx prisma db push --skip-generate --accept-data-loss", {
     stdio: "inherit",
     env: { ...process.env, DATABASE_URL },
   });
