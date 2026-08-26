@@ -161,6 +161,18 @@ async function main() {
   r = await api("/stats/mood", { token });
   check("stats/mood 200", r.status === 200, r.json);
 
+  console.log("\nPush & nhắc nhở");
+  r = await api("/push/vapid", { token });
+  check("vapid 200", r.status === 200 && "enabled" in (r.json || {}), r.json);
+  r = await api("/push/subscribe", { method: "POST", token, body: { endpoint: "https://example.com/push/abc", keys: { p256dh: "BAAA", auth: "AAAA" } } });
+  check("subscribe 200", r.status === 200, r.json);
+  r = await api("/users/me", { method: "PATCH", token, body: { reminder_enabled: true, reminder_time: "21:30" } });
+  check("bật nhắc + giờ 200", r.status === 200 && r.json?.reminderEnabled === true && r.json?.reminderTime === "21:30", r.json);
+  r = await api("/internal/reminders", { method: "POST", headers: { "x-cron-secret": CRON_SECRET } });
+  check("reminders cron 200", r.status === 200, r.json);
+  r = await api("/internal/reminders", { method: "POST", headers: { "x-cron-secret": "sai" } });
+  check("reminders sai secret 403", r.status === 403);
+
   console.log("\nUndo");
   r = await api(`/habits/${habitId}/logs/${today}`, { method: "DELETE", token });
   check("undo 200", r.status === 200, r.json);

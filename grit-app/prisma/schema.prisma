@@ -60,6 +60,9 @@ model User {
   displayName  String?  @map("display_name")
   timezone     String   @default("Asia/Ho_Chi_Minh")
   dayCutoff    String   @default("00:00") @map("day_cutoff") // "HH:mm"
+  reminderEnabled Boolean   @default(false) @map("reminder_enabled")
+  reminderTime    String    @default("20:00") @map("reminder_time") // "HH:mm" giờ nhắc
+  reminderSentOn  DateTime? @map("reminder_sent_on") @db.Date // ngày cuối đã gửi nhắc (chống trùng)
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
 
@@ -69,8 +72,23 @@ model User {
   reflections Reflection[]
   freezeLogs  FreezeLedger[]
   moodLogs    MoodLog[]
+  pushSubs    PushSubscription[]
 
   @@map("users")
+}
+
+model PushSubscription {
+  id        BigInt   @id @default(autoincrement())
+  userId    BigInt   @map("user_id")
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 model Goal {

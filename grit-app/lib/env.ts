@@ -18,6 +18,10 @@ export const ENV = {
   ACCESS_TTL: process.env.JWT_ACCESS_TTL || "15m",
   REFRESH_TTL: process.env.JWT_REFRESH_TTL || "30d",
   CRON_SECRET: process.env.INTERNAL_CRON_SECRET || (isProd ? "" : "dev-cron-secret"),
+  VAPID_PUBLIC: process.env.VAPID_PUBLIC_KEY || "",
+  VAPID_PRIVATE: process.env.VAPID_PRIVATE_KEY || "",
+  VAPID_SUBJECT: process.env.VAPID_SUBJECT || "mailto:admin@grit.local",
+  PUSH_ENABLED: !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY),
   // Rate-limit: bật mặc định ở production; dev/test tắt để không cản e2e.
   RATELIMIT_ENABLED: process.env.RATELIMIT_ENABLED
     ? process.env.RATELIMIT_ENABLED === "true"

@@ -60,6 +60,26 @@ function setBadge(n: number) {
   } catch {}
 }
 
+function urlB64ToUint8Array(base64: string) {
+  const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+  const b = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(b);
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+async function subscribePush(token: string) {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) throw new Error("Trình duyệt không hỗ trợ thông báo đẩy.");
+  const perm = await Notification.requestPermission();
+  if (perm !== "granted") throw new Error("Bạn chưa cấp quyền thông báo.");
+  const vapid = await apiCall("/push/vapid", { token });
+  if (!vapid.json?.enabled || !vapid.json?.publicKey) throw new Error("Máy chủ chưa bật push (thiếu VAPID).");
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8Array(vapid.json.publicKey) });
+  const j: any = sub.toJSON();
+  await apiCall("/push/subscribe", { method: "POST", token, body: { endpoint: j.endpoint, keys: j.keys } });
+}
+
 function applyAccent(hex: string | null) {
   const root = document.documentElement;
   if (hex && hex !== ACCENTS[0]) {
@@ -193,6 +213,29 @@ function SettingsScreen({ token, me, onLogout }: { token: string; me: any; onLog
   const [savedMsg, setSavedMsg] = useState("");
   const [exporting, setExporting] = useState(false);
   const [badgeMsg, setBadgeMsg] = useState("");
+  const [reminderOn, setReminderOn] = useState(!!me?.reminderEnabled);
+  const [reminderTime, setReminderTime] = useState(me?.reminderTime || "20:00");
+  const [remindMsg, setRemindMsg] = useState("");
+
+  async function toggleReminder(on: boolean) {
+    setRemindMsg("");
+    if (on) {
+      try {
+        await subscribePush(token);
+        await apiCall("/users/me", { method: "PATCH", token, body: { reminder_enabled: true, reminder_time: reminderTime } });
+        setReminderOn(true); setRemindMsg("✓ Đã bật nhắc nhở");
+      } catch (e: any) { setRemindMsg(e?.message || "Không bật được."); }
+    } else {
+      await apiCall("/users/me", { method: "PATCH", token, body: { reminder_enabled: false } });
+      setReminderOn(false); setRemindMsg("Đã tắt nhắc nhở");
+    }
+    setTimeout(() => setRemindMsg(""), 3500);
+  }
+  async function saveReminderTime(t: string) {
+    setReminderTime(t);
+    await apiCall("/users/me", { method: "PATCH", token, body: { reminder_time: t } });
+    setRemindMsg("✓ Đã lưu giờ nhắc"); setTimeout(() => setRemindMsg(""), 2500);
+  }
 
   async function enableBadge() {
     try {
@@ -255,6 +298,24 @@ function SettingsScreen({ token, me, onLogout }: { token: string; me: any; onLog
           <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>VD 03:00 nếu hay thức khuya — trước giờ này vẫn tính là "hôm qua".</div>
           <button className="btn" onClick={saveTime}>Lưu</button>
           {savedMsg && <div style={{ textAlign: "center", marginTop: 10 }}><span className="saved-tag">✓ {savedMsg}</span></div>}
+        </div>
+      </div>
+
+      <div className="set-block">
+        <div className="set-label">Nhắc nhở hằng ngày</div>
+        <div className="card">
+          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+            <input type="checkbox" checked={reminderOn} onChange={(e) => toggleReminder(e.target.checked)} style={{ width: "auto" }} />
+            <span>Nhắc điểm danh mỗi ngày (thông báo đẩy)</span>
+          </label>
+          {reminderOn && (
+            <>
+              <label>Giờ nhắc</label>
+              <input type="time" value={reminderTime} onChange={(e) => saveReminderTime(e.target.value)} />
+            </>
+          )}
+          {remindMsg && <div className="mood-note-saved">{remindMsg}</div>}
+          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>iOS: cần thêm app vào Màn hình chính (iOS 16.4+) mới nhận được thông báo.</div>
         </div>
       </div>
 

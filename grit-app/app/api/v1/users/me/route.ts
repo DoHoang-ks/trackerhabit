@@ -9,7 +9,7 @@ export const GET = handler(async (req) => {
 
   const user = await prisma.user.findUnique({
     where: { id: auth.user.id },
-    select: { id: true, email: true, displayName: true, timezone: true, dayCutoff: true },
+    select: { id: true, email: true, displayName: true, timezone: true, dayCutoff: true, reminderEnabled: true, reminderTime: true },
   });
   return ok(user);
 });
@@ -18,6 +18,8 @@ const Patch = z.object({
   display_name: z.string().min(1).max(80).optional(),
   timezone: z.string().optional(),
   day_cutoff: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Định dạng HH:mm").optional(),
+  reminder_enabled: z.boolean().optional(),
+  reminder_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Định dạng HH:mm").optional(),
 });
 
 export const PATCH = handler(async (req) => {
@@ -30,7 +32,7 @@ export const PATCH = handler(async (req) => {
       fields: parsed.error.flatten().fieldErrors,
     });
   }
-  const { display_name, timezone, day_cutoff } = parsed.data;
+  const { display_name, timezone, day_cutoff, reminder_enabled, reminder_time } = parsed.data;
 
   const user = await prisma.user.update({
     where: { id: auth.user.id },
@@ -38,8 +40,10 @@ export const PATCH = handler(async (req) => {
       ...(display_name !== undefined ? { displayName: display_name } : {}),
       ...(timezone !== undefined ? { timezone } : {}),
       ...(day_cutoff !== undefined ? { dayCutoff: day_cutoff } : {}),
+      ...(reminder_enabled !== undefined ? { reminderEnabled: reminder_enabled } : {}),
+      ...(reminder_time !== undefined ? { reminderTime: reminder_time } : {}),
     },
-    select: { id: true, email: true, displayName: true, timezone: true, dayCutoff: true },
+    select: { id: true, email: true, displayName: true, timezone: true, dayCutoff: true, reminderEnabled: true, reminderTime: true },
   });
   // Lưu ý: đổi tz/cut-off không hồi tố streak quá khứ (chỉ áp cho cron kế tiếp).
   return ok(user);
