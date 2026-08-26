@@ -260,6 +260,10 @@ input:focus, select:focus { outline: 2px solid var(--ember); outline-offset: 1px
 .preview-chip { display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; font-size: 22px; margin-top: 8px; }
 
 /* ===== Stats v2 ===== */
+.seg2 { display: flex; gap: 4px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 4px; margin-bottom: 14px; }
+.seg2 button { flex: 1; border: 0; background: none; padding: 9px; border-radius: 9px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); font-family: inherit; }
+.seg2 button.on { background: var(--panel); color: var(--ember); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.ov-note { font-size: 12px; color: var(--muted); margin: -2px 2px 12px; }
 .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 6px 0 8px; }
 .stat-grid .stat { border-radius: 15px; }
 .stat .cap { display: flex; align-items: center; justify-content: center; gap: 5px; }

@@ -128,6 +128,10 @@ async function main() {
   check("focus.today_status completed", r.json?.focus?.today_status === "completed", r.json?.focus);
   check("focus.current_streak = 1", r.json?.focus?.current_streak === 1);
 
+  r = await api("/stats/overview?days=30", { token });
+  check("overview 200 gộp habit", r.status === 200 && r.json?.active_habits >= 1 && Array.isArray(r.json?.days), r.json);
+  check("overview this_week_done >= 1", (r.json?.this_week_done ?? 0) >= 1, r.json?.this_week_done);
+
   console.log("\nUndo");
   r = await api(`/habits/${habitId}/logs/${today}`, { method: "DELETE", token });
   check("undo 200", r.status === 200, r.json);

@@ -484,6 +484,90 @@ const isGood = (s: string) => s === "completed" || s === "partial";
 const isActed = (s: string) => s === "completed" || s === "partial" || s === "missed";
 
 function StatsTab({ token }: { token: string }) {
+  const [mode, setMode] = useState<"overview" | "single">("overview");
+  return (
+    <>
+      <div className="section-title">Thống kê</div>
+      <div className="seg2">
+        <button className={mode === "overview" ? "on" : ""} onClick={() => setMode("overview")}>Tổng quan</button>
+        <button className={mode === "single" ? "on" : ""} onClick={() => setMode("single")}>Theo thói quen</button>
+      </div>
+      {mode === "overview" ? <OverviewStats token={token} /> : <SingleStats token={token} />}
+      <ReflectionCard token={token} />
+    </>
+  );
+}
+
+function OverviewStats({ token }: { token: string }) {
+  const [ov, setOv] = useState<any>(null);
+  useEffect(() => { apiCall("/stats/overview?days=364", { token }).then((r) => setOv(r.json)); }, [token]);
+
+  if (!ov) return <div className="center-screen">Đang tải…</div>;
+  if (ov.active_habits === 0) return <div className="ov-note">Chưa có thói quen nào để thống kê.</div>;
+
+  const color = "#ea580c";
+  const trend = ov.this_week_done - ov.last_week_done;
+  const bestWd = ov.weekday.some((r: number) => r > 0) ? ov.weekday.indexOf(Math.max(...ov.weekday)) : -1;
+  const lvlBg = (lvl: number) => lvl === 3 ? color : lvl === 2 ? `color-mix(in srgb, ${color} 60%, var(--panel-2))` : lvl === 1 ? `color-mix(in srgb, ${color} 30%, var(--panel-2))` : undefined;
+
+  // heatmap gộp: cường độ = done/due mỗi ngày; canh thứ Hai
+  const byDate = new Map<string, { due: number; done: number }>();
+  for (const d of ov.days) byDate.set(d.date, { due: d.due, done: d.done });
+  const today0 = new Date(); today0.setHours(0, 0, 0, 0);
+  const start = new Date(today0); start.setDate(start.getDate() - 364);
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  const cells: Array<{ k: string; lvl: number; due: number; done: number }> = [];
+  for (let d = new Date(start); d <= today0; d.setDate(d.getDate() + 1)) {
+    const k = isoOf(d);
+    const rec = byDate.get(k) || { due: 0, done: 0 };
+    let lvl = 0;
+    if (rec.due > 0 && rec.done > 0) { const r = rec.done / rec.due; lvl = r >= 1 ? 3 : r >= 0.5 ? 2 : 1; }
+    cells.push({ k, lvl, due: rec.due, done: rec.done });
+  }
+
+  return (
+    <>
+      <div className="ov-note">Gộp tất cả {ov.active_habits} thói quen đang hoạt động.</div>
+      <div className="stat-grid">
+        <div className="stat ember"><b>{ov.best_current_streak}</b><small><span className="cap"><Flame size={11} /> Chuỗi tốt nhất</span></small></div>
+        <div className="stat"><b>{ov.best_longest_streak}</b><small>Dài nhất mọi thời</small></div>
+        <div className="stat"><b>{ov.rate_30d}%</b><small>Tỉ lệ đạt (30 ngày)</small></div>
+        <div className="stat"><b>{ov.total_completions}</b><small>Tổng lượt (1 năm)</small></div>
+      </div>
+
+      <div className="block-title">Tuần này — mọi thói quen</div>
+      <div className="recap">
+        <div className="num" style={{ color }}>{ov.this_week_done}</div>
+        <div className="rl"><b>{ov.this_week_done} lượt hoàn thành</b><small>Tuần trước: {ov.last_week_done} lượt</small></div>
+        <span className={`trend ${trend > 0 ? "up" : trend < 0 ? "down" : "flat"}`}>{trend > 0 ? `▲ +${trend}` : trend < 0 ? `▼ ${trend}` : "—"}</span>
+      </div>
+
+      <div className="block-title">Ngày mạnh nhất trong tuần</div>
+      <div className="wbars">
+        {ov.weekday.map((r: number, i: number) => (
+          <div className={`wbar${i === bestWd ? " best" : ""}`} key={i}>
+            <div className="pc">{r > 0 ? r + "%" : ""}</div>
+            <div className="track"><div className="fill" style={{ height: `${r}%`, background: i === bestWd ? color : "var(--line-strong)" }} /></div>
+            <div className="lbl">{WDN[i]}</div>
+          </div>
+        ))}
+      </div>
+      {bestWd >= 0 && <div className="best-day">Cả nhóm làm tốt nhất vào <b>{WDN[bestWd] === "CN" ? "Chủ Nhật" : "Thứ " + WDN[bestWd].slice(1)}</b> ({ov.weekday[bestWd]}%).</div>}
+
+      <div className="block-title">1 năm qua — đậm = nhiều thói quen hoàn thành/ngày</div>
+      <div className="hy-wrap">
+        <div className="hy">
+          {cells.map((c) => <i key={c.k} className="hc" style={c.lvl ? { background: lvlBg(c.lvl), borderColor: "transparent" } : undefined} title={`${c.k}: ${c.done}/${c.due}`} />)}
+        </div>
+      </div>
+      <div className="hy-legend">
+        Ít <i /><i style={{ background: lvlBg(1), borderColor: "transparent" }} /><i style={{ background: lvlBg(2), borderColor: "transparent" }} /><i style={{ background: color, borderColor: "transparent" }} /> Nhiều
+      </div>
+    </>
+  );
+}
+
+function SingleStats({ token }: { token: string }) {
   const [habits, setHabits] = useState<any[]>([]);
   const [sel, setSel] = useState("");
   const [detail, setDetail] = useState<any>(null);
@@ -503,7 +587,6 @@ function StatsTab({ token }: { token: string }) {
     })();
   }, [sel, token]);
 
-  // Dựng chuỗi ngày 1 năm, canh về thứ Hai để heatmap thẳng cột-tuần.
   const today0 = new Date(); today0.setHours(0, 0, 0, 0);
   const start = new Date(today0); start.setDate(start.getDate() - 364);
   start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
@@ -519,20 +602,17 @@ function StatsTab({ token }: { token: string }) {
   const a30 = last30.filter((x) => isActed(x.st)).length;
   const rate30 = a30 ? Math.round(last30.filter((x) => isGood(x.st)).length / a30 * 100) : 0;
 
-  // hiệu suất theo thứ
   const wd = Array.from({ length: 7 }, () => ({ g: 0, a: 0 }));
   for (const x of days) if (isActed(x.st)) { wd[x.wd].a++; if (isGood(x.st)) wd[x.wd].g++; }
   const wdRate = wd.map((w) => (w.a ? Math.round(w.g / w.a * 100) : 0));
   const bestWd = wdRate.some((r) => r > 0) ? wdRate.indexOf(Math.max(...wdRate)) : -1;
 
-  // weekly recap
   const thisWeek = days.slice(-7).filter((x) => isGood(x.st)).length;
   const lastWeek = days.slice(-14, -7).filter((x) => isGood(x.st)).length;
   const trend = thisWeek - lastWeek;
 
   return (
     <>
-      <div className="section-title">Thống kê</div>
       <div className="picker">
         {habits.map((h) => <button key={h.id} className={String(h.id) === sel ? "on" : ""} onClick={() => setSel(String(h.id))}>{h.icon} {h.name}</button>)}
       </div>
@@ -585,8 +665,6 @@ function StatsTab({ token }: { token: string }) {
           </div>
         </>
       )}
-
-      <ReflectionCard token={token} />
     </>
   );
 }
