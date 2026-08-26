@@ -34,6 +34,14 @@ function weekStartLocal(): string { const d = new Date(); const dow = (d.getDay(
 function tint(hex: string, pct = 16) { return `color-mix(in srgb, ${hex} ${pct}%, var(--panel))`; }
 
 const MOODS = ["😞", "😕", "😐", "🙂", "😄"]; // index+1 = giá trị mood
+const MOOD_META = [
+  { v: 1, emoji: "😖", label: "Tệ", color: "#e03131" },
+  { v: 2, emoji: "🙁", label: "Kém", color: "#e8760c" },
+  { v: 3, emoji: "😐", label: "Ổn", color: "#f59f00" },
+  { v: 4, emoji: "🙂", label: "Vui", color: "#82c91e" },
+  { v: 5, emoji: "🤩", label: "Tuyệt", color: "#2f9e44" },
+];
+const moodMeta = (v: number) => MOOD_META.find((m) => m.v === v) || MOOD_META[2];
 const ACCENTS = ["#ea580c", "#e11d48", "#7c3aed", "#2563eb", "#0891b2", "#059669"]; // [0] = mặc định
 function hexToRgba(hex: string, a: number) {
   const n = parseInt(hex.replace("#", ""), 16);
@@ -420,18 +428,44 @@ function IconColorPicker({ icon, color, onIcon, onColor }: { icon: string; color
 /* ---------------- Today (Grit-style list) ---------------- */
 function MoodWidget({ token }: { token: string }) {
   const [mood, setMood] = useState<number | null>(null);
+  const [note, setNote] = useState("");
+  const [showNote, setShowNote] = useState(false);
+  const [saved, setSaved] = useState(false);
+
   useEffect(() => {
     apiCall(`/mood?from=${todayLocal()}&to=${todayLocal()}`, { token }).then((r) => {
-      const row = (r.json?.data || [])[0]; if (row) setMood(row.mood);
+      const row = (r.json?.data || [])[0]; if (row) { setMood(row.mood); setNote(row.note || ""); }
     });
   }, [token]);
-  async function pick(m: number) { setMood(m); await apiCall("/mood", { method: "POST", token, body: { logged_date: todayLocal(), mood: m } }); }
+
+  async function save(m: number, n: string) {
+    await apiCall("/mood", { method: "POST", token, body: { logged_date: todayLocal(), mood: m, note: n || undefined } });
+    setSaved(true); setTimeout(() => setSaved(false), 2000);
+  }
+  function pick(m: number) { setMood(m); save(m, note); }
+
   return (
     <div className="mood-card">
-      <span className="ml">Tâm trạng?</span>
+      <span className="ml">Hôm nay bạn thấy thế nào?</span>
       <div className="mood-faces">
-        {MOODS.map((f, i) => <button key={i} className={`mood-face${mood === i + 1 ? " on" : ""}`} onClick={() => pick(i + 1)} aria-label={`mood ${i + 1}`}>{f}</button>)}
+        {MOOD_META.map((mm) => (
+          <button key={mm.v} className={`mood-face${mood === mm.v ? " on" : ""}`} onClick={() => pick(mm.v)} aria-label={mm.label}>
+            <span className="fc" style={mood === mm.v ? { borderColor: mm.color, background: `color-mix(in srgb, ${mm.color} 16%, var(--panel-2))` } : undefined}>{mm.emoji}</span>
+            <span className="fl">{mm.label}</span>
+          </button>
+        ))}
       </div>
+      {mood != null && (
+        !showNote
+          ? <button className="mood-note-toggle" onClick={() => setShowNote(true)}>{note ? "✎ " + note.slice(0, 40) : "＋ Thêm ghi chú tâm trạng"}</button>
+          : (
+            <div className="note-wrap">
+              <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Điều gì khiến bạn thấy vậy?" />
+              <button className="btn" style={{ marginTop: 8, padding: 10, fontSize: 14 }} onClick={() => { save(mood, note); setShowNote(false); }}>Lưu</button>
+            </div>
+          )
+      )}
+      {saved && <div className="mood-note-saved">✓ Đã ghi tâm trạng</div>}
     </div>
   );
 }
@@ -956,17 +990,82 @@ function MoodCorrelation({ token }: { token: string }) {
   );
 }
 
+function MoodStats({ token }: { token: string }) {
+  const [rows, setRows] = useState<any[] | null>(null);
+  useEffect(() => { apiCall(`/mood?from=${daysAgoLocal(364)}&to=${todayLocal()}`, { token }).then((r) => setRows(r.json?.data || [])); }, [token]);
+
+  if (rows === null) return <div className="center-screen">Đang tải…</div>;
+  if (rows.length === 0) return <div className="ov-note">Chưa có dữ liệu tâm trạng. Ghi tâm trạng ở tab Hôm nay để xem thống kê.</div>;
+
+  const moodByDate = new Map<string, number>();
+  for (const r of rows) moodByDate.set(String(r.loggedDate).slice(0, 10), r.mood);
+  const avg = rows.reduce((a, r) => a + r.mood, 0) / rows.length;
+  const avgMeta = moodMeta(Math.round(avg));
+  const dist = [1, 2, 3, 4, 5].map((v) => ({ v, count: rows.filter((r) => r.mood === v).length }));
+  const maxCount = Math.max(1, ...dist.map((d) => d.count));
+
+  const today0 = new Date(); today0.setHours(0, 0, 0, 0);
+  const start = new Date(today0); start.setDate(start.getDate() - 364); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  const cells: Array<{ k: string; mood?: number }> = [];
+  for (let d = new Date(start); d <= today0; d.setDate(d.getDate() + 1)) { const k = isoOf(d); cells.push({ k, mood: moodByDate.get(k) }); }
+  const journal = [...rows].reverse().filter((r) => r.note).slice(0, 12);
+
+  return (
+    <>
+      <div className="mood-avg">
+        <div className="big-face" style={{ background: `color-mix(in srgb, ${avgMeta.color} 18%, var(--panel-2))` }}>{avgMeta.emoji}</div>
+        <div className="ma"><b>Trung bình: {avgMeta.label} · {avg.toFixed(1)}/5</b><small>{rows.length} ngày đã ghi tâm trạng</small></div>
+      </div>
+
+      <div className="block-title">Phân bố tâm trạng</div>
+      <div className="mdist">
+        {dist.slice().reverse().map((d) => { const m = moodMeta(d.v); return (
+          <div className="mrow" key={d.v}>
+            <span className="em">{m.emoji}</span>
+            <div className="bar"><i style={{ width: `${(d.count / maxCount) * 100}%`, background: m.color }} /></div>
+            <span className="ct">{d.count}</span>
+          </div>
+        ); })}
+      </div>
+
+      <div className="block-title">1 năm tâm trạng · Year in Pixels</div>
+      <div className="hy-wrap">
+        <div className="pixels">
+          {cells.map((c) => { const m = c.mood ? moodMeta(c.mood) : null; return <i key={c.k} style={m ? { background: m.color, borderColor: "transparent" } : undefined} title={`${c.k}${m ? ": " + m.label : ""}`} />; })}
+        </div>
+      </div>
+
+      {journal.length > 0 && (
+        <>
+          <div className="block-title">Nhật ký tâm trạng</div>
+          <div className="mjournal">
+            {journal.map((r, i) => { const m = moodMeta(r.mood); return (
+              <div className="mj-item" key={i}>
+                <span className="mem">{m.emoji}</span>
+                <div className="mtx"><div className="md">{String(r.loggedDate).slice(0, 10)} · {m.label}</div><div className="mn">{r.note}</div></div>
+              </div>
+            ); })}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
 function StatsTab({ token }: { token: string }) {
-  const [mode, setMode] = useState<"overview" | "single">("overview");
+  const [mode, setMode] = useState<"overview" | "single" | "mood">("overview");
   return (
     <>
       <div className="section-title">Thống kê</div>
       <div className="seg2">
         <button className={mode === "overview" ? "on" : ""} onClick={() => setMode("overview")}>Tổng quan</button>
-        <button className={mode === "single" ? "on" : ""} onClick={() => setMode("single")}>Theo thói quen</button>
+        <button className={mode === "single" ? "on" : ""} onClick={() => setMode("single")}>Thói quen</button>
+        <button className={mode === "mood" ? "on" : ""} onClick={() => setMode("mood")}>Tâm trạng</button>
       </div>
-      {mode === "overview" ? <OverviewStats token={token} /> : <SingleStats token={token} />}
-      <ReflectionCard token={token} />
+      {mode === "overview" && <OverviewStats token={token} />}
+      {mode === "single" && <SingleStats token={token} />}
+      {mode === "mood" && <MoodStats token={token} />}
+      {mode !== "mood" && <ReflectionCard token={token} />}
     </>
   );
 }

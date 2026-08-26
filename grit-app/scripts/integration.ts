@@ -151,10 +151,10 @@ async function main() {
   const badId = r.json?.id;
   if (badId) await api(`/habits/${badId}?hard=true`, { method: "DELETE", token }); // dọn để không lệch số đếm sau
 
-  r = await api("/mood", { method: "POST", token, body: { logged_date: today, mood: 4 } });
+  r = await api("/mood", { method: "POST", token, body: { logged_date: today, mood: 4, note: "Ngày ổn" } });
   check("POST mood 200/201", r.status === 200 || r.status === 201, r.json);
   r = await api(`/mood?from=${today}&to=${today}`, { token });
-  check("GET mood có bản ghi", (r.json?.data?.length ?? 0) >= 1);
+  check("GET mood có bản ghi + note", (r.json?.data?.[0]?.mood === 4) && (r.json?.data?.[0]?.note === "Ngày ổn"), r.json?.data);
 
   r = await api("/stats/year-review", { token });
   check("year-review 200", r.status === 200 && typeof r.json?.total_completions === "number", r.json);

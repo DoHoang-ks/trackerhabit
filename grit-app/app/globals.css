@@ -322,11 +322,36 @@ input:focus, select:focus { outline: 2px solid var(--ember); outline-offset: 1px
 .hy-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; border: 1px solid var(--line); }
 
 /* ===== Mood ===== */
-.mood-card { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel); margin: 14px 0 4px; }
-.mood-card .ml { font-size: 13px; color: var(--muted); flex: none; }
-.mood-faces { display: flex; gap: 6px; flex: 1; justify-content: space-between; }
-.mood-face { width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line-strong); background: var(--panel-2); font-size: 19px; cursor: pointer; display: grid; place-items: center; padding: 0; }
-.mood-face.on { border-color: var(--ember); box-shadow: 0 0 0 2px var(--ember-glow); transform: scale(1.08); }
+.mood-card { padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel); margin: 14px 0 4px; }
+.mood-card .ml { font-size: 13px; color: var(--muted); display: block; margin-bottom: 10px; }
+.mood-faces { display: flex; gap: 6px; justify-content: space-between; }
+.mood-face { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; border: 0; background: none; cursor: pointer; padding: 0; font-family: inherit; }
+.mood-face .fc { width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--line); background: var(--panel-2); font-size: 23px; display: grid; place-items: center; transition: transform .12s ease; }
+.mood-face .fl { font-size: 10px; color: var(--faint); font-family: "IBM Plex Mono", monospace; }
+.mood-face.on .fc { transform: scale(1.12); }
+.mood-face.on .fl { color: var(--ink); font-weight: 700; }
+.mood-note-toggle { background: none; border: 0; color: var(--muted); font-size: 12px; cursor: pointer; margin-top: 10px; text-decoration: underline; padding: 0; }
+.mood-note-saved { color: var(--good); font-size: 12px; margin-top: 8px; }
+
+/* mood stats page */
+.mood-avg { display: flex; align-items: center; gap: 16px; padding: 18px; border-radius: 18px; border: 1px solid var(--line); background: linear-gradient(165deg, var(--panel-2), var(--panel)); }
+.mood-avg .big-face { width: 64px; height: 64px; border-radius: 18px; display: grid; place-items: center; font-size: 34px; flex: none; }
+.mood-avg .ma b { font-family: "Archivo", sans-serif; font-weight: 800; font-size: 22px; }
+.mood-avg .ma small { display: block; color: var(--muted); font-size: 12px; }
+.mdist { display: flex; flex-direction: column; gap: 7px; }
+.mdist .mrow { display: flex; align-items: center; gap: 10px; }
+.mdist .mrow .em { font-size: 18px; width: 24px; text-align: center; }
+.mdist .mrow .bar { flex: 1; height: 10px; border-radius: 999px; background: var(--panel-2); overflow: hidden; }
+.mdist .mrow .bar i { display: block; height: 100%; border-radius: 999px; }
+.mdist .mrow .ct { font-size: 11px; color: var(--muted); font-family: "IBM Plex Mono", monospace; width: 26px; text-align: right; }
+.pixels { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 11px); grid-auto-columns: 11px; gap: 3px; }
+.pixels i { width: 11px; height: 11px; border-radius: 2px; background: var(--panel-2); border: 1px solid var(--line); }
+.mjournal { display: flex; flex-direction: column; gap: 8px; }
+.mj-item { display: flex; gap: 11px; align-items: flex-start; border: 1px solid var(--line); border-radius: 13px; padding: 11px 13px; background: var(--panel); }
+.mj-item .mem { font-size: 22px; flex: none; }
+.mj-item .mtx { flex: 1; min-width: 0; }
+.mj-item .mtx .md { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--faint); text-transform: uppercase; }
+.mj-item .mtx .mn { font-size: 13px; color: var(--ink-soft); margin-top: 3px; line-height: 1.45; }
 
 /* note */
 .note-wrap { margin-top: 12px; width: 100%; }
