@@ -14,14 +14,43 @@ export const GET = handler(async (req) => {
   const fs = await prisma.friendship.findMany({
     where: { status: "accepted", OR: [{ requesterId: auth.user.id }, { addresseeId: auth.user.id }] },
     include: {
-      requester: { select: { id: true, handle: true, displayName: true } },
-      addressee: { select: { id: true, handle: true, displayName: true } },
+      requester: { select: { id: true, handle: true, displayName: true, shareMood: true } },
+      addressee: { select: { id: true, handle: true, displayName: true, shareMood: true } },
     },
     orderBy: { createdAt: "desc" },
   });
+
+  const others = fs.map((f) => (f.requesterId === auth.user.id ? f.addressee : f.requester));
+  const otherIds = others.map((o) => o.id);
+  // Mức tâm trạng mới nhất (3 ngày gần đây) — CHỈ mức, KHÔNG lấy ghi chú.
+  const recent = otherIds.length
+    ? await prisma.moodLog.findMany({
+        where: { userId: { in: otherIds }, loggedDate: { gte: new Date(Date.now() - 3 * 864e5) } },
+        orderBy: { loggedDate: "desc" },
+        select: { userId: true, mood: true },
+      })
+    : [];
+  const latestMood = new Map<string, number>();
+  for (const m of recent) if (!latestMood.has(m.userId.toString())) latestMood.set(m.userId.toString(), m.mood);
+
+  // Số tin nhắn chưa đọc theo từng bạn.
+  const unreadRows = await prisma.message.groupBy({
+    by: ["senderId"],
+    where: { receiverId: auth.user.id, readAt: null },
+    _count: true,
+  });
+  const unreadBy = new Map<string, number>();
+  for (const u of unreadRows) unreadBy.set(u.senderId.toString(), u._count);
+
   const data = fs.map((f) => {
     const other = f.requesterId === auth.user.id ? f.addressee : f.requester;
-    return { friendship_id: f.id, ...publicUser(other) };
+    const mood = other.shareMood ? latestMood.get(other.id.toString()) ?? null : null;
+    return {
+      friendship_id: f.id,
+      ...publicUser(other),
+      mood_level: mood,
+      unread: unreadBy.get(other.id.toString()) ?? 0,
+    };
   });
   return ok({ data });
 });

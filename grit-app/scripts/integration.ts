@@ -194,6 +194,23 @@ async function main() {
   r = await api("/feed", { token });
   check("feed 200", r.status === 200 && Array.isArray(r.json?.data), r.json);
 
+  console.log("\nChat + chia sẻ mood");
+  r = await api("/users/me", { token });
+  const aId = r.json?.id;
+  r = await api("/friends", { token });
+  const bId = (r.json?.data || []).find((f: any) => f.handle === hB)?.id;
+  check("lấy id bạn B", !!bId);
+  r = await api(`/messages/${bId}`, { method: "POST", token, body: { text: "Chào Minh!" } });
+  check("A gửi tin nhắn 201", r.status === 201, r.json);
+  r = await api(`/messages/${aId}`, { token: tokenB });
+  check("B nhận được tin (mine=false)", (r.json?.data || []).some((m: any) => m.text === "Chào Minh!" && m.mine === false), r.json?.data);
+  r = await api("/mood", { method: "POST", token: tokenB, body: { logged_date: today, mood: 5 } });
+  r = await api("/friends", { token });
+  check("A thấy mood-level của B (=5)", (r.json?.data || []).find((f: any) => f.handle === hB)?.mood_level === 5, r.json?.data);
+  r = await api("/users/me", { method: "PATCH", token: tokenB, body: { share_mood: false } });
+  r = await api("/friends", { token });
+  check("B tắt chia sẻ → A không thấy mood", (r.json?.data || []).find((f: any) => f.handle === hB)?.mood_level == null, r.json?.data);
+
   console.log("\nUndo");
   r = await api(`/habits/${habitId}/logs/${today}`, { method: "DELETE", token });
   check("undo 200", r.status === 200, r.json);

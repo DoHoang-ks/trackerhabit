@@ -222,6 +222,12 @@ function SettingsScreen({ token, me, onLogout }: { token: string; me: any; onLog
   const [remindMsg, setRemindMsg] = useState("");
   const [handle, setHandle] = useState(me?.handle || "");
   const [handleMsg, setHandleMsg] = useState("");
+  const [shareMood, setShareMood] = useState(me?.shareMood !== false);
+
+  async function toggleShareMood(on: boolean) {
+    setShareMood(on);
+    await apiCall("/users/me", { method: "PATCH", token, body: { share_mood: on } });
+  }
 
   async function saveHandle() {
     const r = await apiCall("/users/me", { method: "PATCH", token, body: { handle } });
@@ -359,6 +365,17 @@ function SettingsScreen({ token, me, onLogout }: { token: string; me: any; onLog
       </div>
 
       <div className="set-block">
+        <div className="set-label">Quyền riêng tư</div>
+        <div className="card">
+          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+            <input type="checkbox" checked={shareMood} onChange={(e) => toggleShareMood(e.target.checked)} style={{ width: "auto" }} />
+            <span>Cho bạn bè xem <b>mức</b> tâm trạng của tôi</span>
+          </label>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>Chỉ hiện biểu tượng mức (😖 → 🤩). <b>Nội dung ghi chú tâm trạng luôn riêng tư</b> — không ai xem được.</div>
+        </div>
+      </div>
+
+      <div className="set-block">
         <div className="set-label">Tài khoản</div>
         <div className="card">
           <div style={{ fontSize: 14, marginBottom: 12 }}>{me?.email}</div>
@@ -444,17 +461,67 @@ function FeedView({ token }: { token: string }) {
   return <div>{items.map((ev) => <FeedCard key={ev.id} ev={ev} token={token} />)}</div>;
 }
 
+function ChatView({ friend, token, onBack }: { friend: any; token: string; onBack: () => void }) {
+  const [msgs, setMsgs] = useState<any[]>([]);
+  const [text, setText] = useState("");
+  const lastId = useRef<string | null>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  const poll = useCallback(async () => {
+    const q = lastId.current ? `?after=${lastId.current}` : "";
+    const r = await apiCall(`/messages/${friend.id}${q}`, { token });
+    const data = r.json?.data || [];
+    if (data.length) {
+      setMsgs((prev) => (lastId.current ? [...prev, ...data] : data));
+      lastId.current = String(data[data.length - 1].id);
+    } else if (!lastId.current) {
+      setMsgs([]);
+    }
+  }, [friend.id, token]);
+
+  useEffect(() => { poll(); const iv = setInterval(poll, 4000); return () => clearInterval(iv); }, [poll]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
+
+  async function send() {
+    if (!text.trim()) return;
+    const t = text; setText("");
+    await apiCall(`/messages/${friend.id}`, { method: "POST", token, body: { text: t } });
+    poll();
+  }
+
+  return (
+    <>
+      <div className="chat-head">
+        <button onClick={onBack} aria-label="Quay lại">‹</button>
+        <div><b>{friend.name}</b><br /><small>@{friend.handle}</small></div>
+      </div>
+      <div className="chat-msgs">
+        {msgs.length === 0 && <div className="chat-empty">Chưa có tin nhắn. Gửi lời chào 👋</div>}
+        {msgs.map((m) => <div key={m.id} className={`bubble ${m.mine ? "me" : "them"}`}>{m.text}</div>)}
+        <div ref={endRef} />
+      </div>
+      <div className="chat-input">
+        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Nhắn tin…" onKeyDown={(e) => e.key === "Enter" && send()} />
+        <button onClick={send}>Gửi</button>
+      </div>
+    </>
+  );
+}
+
 function FriendsManage({ token, me }: { token: string; me: any }) {
   const [friends, setFriends] = useState<any[]>([]);
   const [reqs, setReqs] = useState<any[]>([]);
   const [handle, setHandle] = useState("");
   const [msg, setMsg] = useState("");
+  const [chatWith, setChatWith] = useState<any>(null);
 
   const load = useCallback(async () => {
     const f = await apiCall("/friends", { token }); setFriends(f.json?.data || []);
     const r = await apiCall("/friends/requests", { token }); setReqs(r.json?.data || []);
   }, [token]);
   useEffect(() => { load(); }, [load]);
+
+  if (chatWith) return <ChatView friend={chatWith} token={token} onBack={() => { setChatWith(null); load(); }} />;
 
   async function add() {
     if (!handle.trim()) return;
@@ -495,10 +562,12 @@ function FriendsManage({ token, me }: { token: string; me: any }) {
       <div className="block-title">Bạn bè ({friends.length})</div>
       {friends.length === 0 && <div className="ov-note">Chưa có bạn nào. Chia sẻ @handle của bạn để kết nối.</div>}
       {friends.map((f) => (
-        <div className="frow" key={f.friendship_id}>
+        <div className="frow" key={f.friendship_id} style={{ cursor: "pointer" }} onClick={() => setChatWith(f)}>
           <span className="feed-av">{(f.name || "?").slice(0, 1).toUpperCase()}</span>
-          <div className="fu"><b>{f.name}</b><small>@{f.handle}</small></div>
-          <button className="fbtn dec" onClick={() => remove(f.friendship_id)}>Hủy</button>
+          {f.mood_level ? <span className="fmood" title="Tâm trạng gần đây">{moodMeta(f.mood_level).emoji}</span> : null}
+          <div className="fu"><b>{f.name}</b><small>@{f.handle} · nhắn tin</small></div>
+          {f.unread > 0 && <span className="unread-badge">{f.unread}</span>}
+          <button className="fbtn dec" onClick={(e) => { e.stopPropagation(); remove(f.friendship_id); }}>Hủy</button>
         </div>
       ))}
     </>

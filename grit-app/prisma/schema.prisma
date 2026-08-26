@@ -64,6 +64,7 @@ model User {
   reminderTime    String    @default("20:00") @map("reminder_time") // "HH:mm" giờ nhắc
   reminderSentOn  DateTime? @map("reminder_sent_on") @db.Date // ngày cuối đã gửi nhắc (chống trùng)
   handle       String?  @unique // tên định danh để kết bạn (@handle)
+  shareMood    Boolean  @default(true) @map("share_mood") // cho bạn bè xem MỨC tâm trạng (không lộ ghi chú)
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
 
@@ -79,8 +80,26 @@ model User {
   events          ActivityEvent[]
   reactions       FeedReaction[]
   comments        FeedComment[]
+  messagesSent     Message[] @relation("msgSent")
+  messagesReceived Message[] @relation("msgReceived")
 
   @@map("users")
+}
+
+model Message {
+  id         BigInt    @id @default(autoincrement())
+  senderId   BigInt    @map("sender_id")
+  receiverId BigInt    @map("receiver_id")
+  text       String
+  readAt     DateTime? @map("read_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  sender   User @relation("msgSent", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("msgReceived", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, receiverId, createdAt])
+  @@index([receiverId, readAt])
+  @@map("messages")
 }
 
 model Friendship {

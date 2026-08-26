@@ -9,7 +9,7 @@ export const GET = handler(async (req) => {
 
   const user = await prisma.user.findUnique({
     where: { id: auth.user.id },
-    select: { id: true, email: true, displayName: true, timezone: true, dayCutoff: true, reminderEnabled: true, reminderTime: true, handle: true },
+    select: { id: true, email: true, displayName: true, timezone: true, dayCutoff: true, reminderEnabled: true, reminderTime: true, handle: true, shareMood: true },
   });
   return ok(user);
 });
@@ -21,6 +21,7 @@ const Patch = z.object({
   reminder_enabled: z.boolean().optional(),
   reminder_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Định dạng HH:mm").optional(),
   handle: z.string().regex(/^[a-z0-9_]{3,20}$/, "3-20 ký tự: a-z, 0-9, _").optional(),
+  share_mood: z.boolean().optional(),
 });
 
 export const PATCH = handler(async (req) => {
@@ -33,7 +34,7 @@ export const PATCH = handler(async (req) => {
       fields: parsed.error.flatten().fieldErrors,
     });
   }
-  const { display_name, timezone, day_cutoff, reminder_enabled, reminder_time, handle } = parsed.data;
+  const { display_name, timezone, day_cutoff, reminder_enabled, reminder_time, handle, share_mood } = parsed.data;
 
   if (handle !== undefined) {
     const taken = await prisma.user.findFirst({ where: { handle, id: { not: auth.user.id } }, select: { id: true } });
@@ -49,8 +50,9 @@ export const PATCH = handler(async (req) => {
       ...(reminder_enabled !== undefined ? { reminderEnabled: reminder_enabled } : {}),
       ...(reminder_time !== undefined ? { reminderTime: reminder_time } : {}),
       ...(handle !== undefined ? { handle } : {}),
+      ...(share_mood !== undefined ? { shareMood: share_mood } : {}),
     },
-    select: { id: true, email: true, displayName: true, timezone: true, dayCutoff: true, reminderEnabled: true, reminderTime: true, handle: true },
+    select: { id: true, email: true, displayName: true, timezone: true, dayCutoff: true, reminderEnabled: true, reminderTime: true, handle: true, shareMood: true },
   });
   // Lưu ý: đổi tz/cut-off không hồi tố streak quá khứ (chỉ áp cho cron kế tiếp).
   return ok(user);

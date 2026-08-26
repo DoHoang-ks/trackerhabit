@@ -354,6 +354,22 @@ input:focus, select:focus { outline: 2px solid var(--ember); outline-offset: 1px
 .frow .fbtn.acc { background: var(--good); color: #fff; }
 .frow .fbtn.dec { background: var(--panel-2); color: var(--muted); }
 
+/* chat + friend extras */
+.fmood { font-size: 20px; flex: none; }
+.unread-badge { background: var(--ember); color: #fff; font-size: 10px; font-weight: 800; border-radius: 999px; min-width: 18px; height: 18px; display: inline-grid; place-items: center; padding: 0 5px; font-family: "IBM Plex Mono", monospace; }
+.chat-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.chat-head button { border: 1px solid var(--line-strong); background: var(--panel); border-radius: 8px; width: 34px; height: 34px; cursor: pointer; color: var(--ink); font-size: 16px; }
+.chat-head b { font-family: "Archivo", sans-serif; font-weight: 700; font-size: 17px; }
+.chat-head small { color: var(--faint); font-size: 11px; font-family: "IBM Plex Mono", monospace; }
+.chat-msgs { display: flex; flex-direction: column; gap: 8px; min-height: 240px; }
+.bubble { max-width: 78%; padding: 10px 13px; border-radius: 16px; font-size: 14px; line-height: 1.4; word-break: break-word; }
+.bubble.them { align-self: flex-start; background: var(--panel-2); border: 1px solid var(--line); border-bottom-left-radius: 5px; }
+.bubble.me { align-self: flex-end; background: linear-gradient(150deg, var(--ember), var(--ember-deep)); color: #fff; border-bottom-right-radius: 5px; }
+.chat-empty { text-align: center; color: var(--faint); font-size: 13px; padding: 30px 0; }
+.chat-input { display: flex; gap: 8px; margin-top: 14px; position: sticky; bottom: 0; }
+.chat-input input { flex: 1; padding: 11px 14px; }
+.chat-input button { border: 0; background: var(--ember); color: #fff; border-radius: 12px; padding: 0 16px; font-weight: 700; cursor: pointer; }
+
 /* ===== Mood ===== */
 .mood-card { padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel); margin: 14px 0 4px; }
 .mood-card .ml { font-size: 13px; color: var(--muted); display: block; margin-bottom: 10px; }
