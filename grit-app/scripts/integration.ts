@@ -173,6 +173,27 @@ async function main() {
   r = await api("/internal/reminders", { method: "POST", headers: { "x-cron-secret": "sai" } });
   check("reminders sai secret 403", r.status === 403);
 
+  console.log("\nSocial (bạn bè + bảng tin)");
+  const sfx = Date.now().toString().slice(-6);
+  r = await api("/users/me", { method: "PATCH", token, body: { handle: "tester_a_" + sfx } });
+  check("A đặt @handle 200", r.status === 200 && r.json?.handle === "tester_a_" + sfx, r.json);
+  const hB = "tester_b_" + sfx;
+  r = await api("/auth/register", { method: "POST", body: { email: `soc_${Date.now()}@grit.test`, password: "test1234", timezone: TZ } });
+  const tokenB = r.json?.access_token;
+  r = await api("/users/me", { method: "PATCH", token: tokenB, body: { handle: hB } });
+  check("B đặt @handle 200", r.status === 200);
+  r = await api("/friends", { method: "POST", token, body: { handle: hB } });
+  check("A gửi lời mời 201", r.status === 201, r.json);
+  r = await api("/friends/requests", { token: tokenB });
+  const reqId = r.json?.data?.[0]?.friendship_id;
+  check("B nhận lời mời", (r.json?.data?.length ?? 0) >= 1 && !!reqId, r.json?.data);
+  r = await api(`/friends/${reqId}`, { method: "PATCH", token: tokenB });
+  check("B chấp nhận 200", r.status === 200);
+  r = await api("/friends", { token });
+  check("A có bạn B trong danh sách", (r.json?.data || []).some((f: any) => f.handle === hB), r.json?.data);
+  r = await api("/feed", { token });
+  check("feed 200", r.status === 200 && Array.isArray(r.json?.data), r.json);
+
   console.log("\nUndo");
   r = await api(`/habits/${habitId}/logs/${today}`, { method: "DELETE", token });
   check("undo 200", r.status === 200, r.json);

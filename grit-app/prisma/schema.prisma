@@ -63,6 +63,7 @@ model User {
   reminderEnabled Boolean   @default(false) @map("reminder_enabled")
   reminderTime    String    @default("20:00") @map("reminder_time") // "HH:mm" giờ nhắc
   reminderSentOn  DateTime? @map("reminder_sent_on") @db.Date // ngày cuối đã gửi nhắc (chống trùng)
+  handle       String?  @unique // tên định danh để kết bạn (@handle)
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
 
@@ -73,8 +74,73 @@ model User {
   freezeLogs  FreezeLedger[]
   moodLogs    MoodLog[]
   pushSubs    PushSubscription[]
+  friendsSent     Friendship[]    @relation("frSent")
+  friendsReceived Friendship[]    @relation("frReceived")
+  events          ActivityEvent[]
+  reactions       FeedReaction[]
+  comments        FeedComment[]
 
   @@map("users")
+}
+
+model Friendship {
+  id          BigInt   @id @default(autoincrement())
+  requesterId BigInt   @map("requester_id")
+  addresseeId BigInt   @map("addressee_id")
+  status      String   @default("pending") // "pending" | "accepted"
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  requester User @relation("frSent", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee User @relation("frReceived", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status])
+  @@map("friendships")
+}
+
+model ActivityEvent {
+  id        BigInt   @id @default(autoincrement())
+  userId    BigInt   @map("user_id")
+  type      String // "streak_milestone" | "badge" | "perfect_day"
+  title     String
+  icon      String   @default("🔥")
+  value     Int?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reactions FeedReaction[]
+  comments  FeedComment[]
+
+  @@index([userId, createdAt])
+  @@map("activity_events")
+}
+
+model FeedReaction {
+  id        BigInt   @id @default(autoincrement())
+  eventId   BigInt   @map("event_id")
+  userId    BigInt   @map("user_id")
+  emoji     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  event ActivityEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@map("feed_reactions")
+}
+
+model FeedComment {
+  id        BigInt   @id @default(autoincrement())
+  eventId   BigInt   @map("event_id")
+  userId    BigInt   @map("user_id")
+  text      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  event ActivityEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, createdAt])
+  @@map("feed_comments")
 }
 
 model PushSubscription {

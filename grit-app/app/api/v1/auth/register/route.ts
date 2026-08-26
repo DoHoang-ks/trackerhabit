@@ -26,7 +26,7 @@ export const POST = handler(async (req) => {
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return fail("CONFLICT", "Email đã được đăng ký.");
 
-  const user = await prisma.user.create({
+  let user = await prisma.user.create({
     data: {
       email,
       passwordHash: await hashPassword(password),
@@ -35,6 +35,8 @@ export const POST = handler(async (req) => {
     },
     select: { id: true, email: true, displayName: true, timezone: true, dayCutoff: true },
   });
+  // handle mặc định duy nhất theo id (user đổi được trong Cài đặt)
+  await prisma.user.update({ where: { id: user.id }, data: { handle: `u${user.id}` } });
 
   return created({
     user,

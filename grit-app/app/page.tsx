@@ -117,7 +117,7 @@ export default function App() {
   const [view, setView] = useState<"loading" | "auth" | "onboarding" | "app">("loading");
   const [token, setToken] = useState<string | null>(null);
   const [me, setMe] = useState<any>(null);
-  const [tab, setTab] = useState<"today" | "habits" | "stats" | "awards">("today");
+  const [tab, setTab] = useState<"today" | "habits" | "stats" | "awards" | "friends">("today");
   const [settings, setSettings] = useState(false);
   const [autoAdd, setAutoAdd] = useState(false);
 
@@ -127,7 +127,7 @@ export default function App() {
     try {
       const q = new URLSearchParams(window.location.search);
       const t = q.get("tab");
-      if (t && ["today", "habits", "stats", "awards"].includes(t)) setTab(t as any);
+      if (t && ["today", "habits", "stats", "awards", "friends"].includes(t)) setTab(t as any);
       if (q.get("action") === "add") setAutoAdd(true);
     } catch {}
   }, []);
@@ -183,6 +183,7 @@ export default function App() {
             {tab === "habits" && <HabitsTab token={token} autoAdd={autoAdd} onConsumeAdd={() => setAutoAdd(false)} />}
             {tab === "stats" && <StatsTab token={token} />}
             {tab === "awards" && <AwardsTab token={token} />}
+            {tab === "friends" && <FriendsTab token={token} me={me} />}
           </div>
           <nav className="tabbar">
             <button className={tab === "today" ? "on" : ""} onClick={() => setTab("today")}>
@@ -196,6 +197,9 @@ export default function App() {
             </button>
             <button className={tab === "awards" ? "on" : ""} onClick={() => setTab("awards")}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4zM7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3" /></svg>Thành tựu
+            </button>
+            <button className={tab === "friends" ? "on" : ""} onClick={() => setTab("friends")}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3 3-5 6-5s6 2 6 5M16 3.5a3 3 0 0 1 0 5.5M22 20c0-2-1.5-3.5-4-4.2" /></svg>Bạn bè
             </button>
           </nav>
         </>
@@ -216,6 +220,14 @@ function SettingsScreen({ token, me, onLogout }: { token: string; me: any; onLog
   const [reminderOn, setReminderOn] = useState(!!me?.reminderEnabled);
   const [reminderTime, setReminderTime] = useState(me?.reminderTime || "20:00");
   const [remindMsg, setRemindMsg] = useState("");
+  const [handle, setHandle] = useState(me?.handle || "");
+  const [handleMsg, setHandleMsg] = useState("");
+
+  async function saveHandle() {
+    const r = await apiCall("/users/me", { method: "PATCH", token, body: { handle } });
+    setHandleMsg(r.status === 200 ? "✓ Đã lưu @" + handle : (r.json?.error?.message || "Lỗi"));
+    setTimeout(() => setHandleMsg(""), 3000);
+  }
 
   async function toggleReminder(on: boolean) {
     setRemindMsg("");
@@ -337,6 +349,16 @@ function SettingsScreen({ token, me, onLogout }: { token: string; me: any; onLog
       </div>
 
       <div className="set-block">
+        <div className="set-label">Tên định danh (@handle)</div>
+        <div className="card">
+          <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 8 }}>Bạn bè dùng @handle này để kết bạn với bạn.</div>
+          <input value={handle} onChange={(e) => setHandle(e.target.value.toLowerCase())} placeholder="vd: minh_grit" />
+          <button className="btn" onClick={saveHandle}>Lưu @handle</button>
+          {handleMsg && <div className="mood-note-saved">{handleMsg}</div>}
+        </div>
+      </div>
+
+      <div className="set-block">
         <div className="set-label">Tài khoản</div>
         <div className="card">
           <div style={{ fontSize: 14, marginBottom: 12 }}>{me?.email}</div>
@@ -346,6 +368,154 @@ function SettingsScreen({ token, me, onLogout }: { token: string; me: any; onLog
 
       <div className="about">Grit Tracker · MVP</div>
     </div>
+  );
+}
+
+/* ---------------- Social: Friends & Feed ---------------- */
+const REACTIONS = ["👏", "🔥", "❤️", "💪"];
+
+function FeedCard({ ev, token }: { ev: any; token: string }) {
+  const [reactions, setReactions] = useState<Record<string, number>>(ev.reactions || {});
+  const [mine, setMine] = useState<string | null>(ev.my_reaction);
+  const [showC, setShowC] = useState(false);
+  const [comments, setComments] = useState<any[] | null>(null);
+  const [cc, setCc] = useState<number>(ev.comment_count);
+  const [text, setText] = useState("");
+
+  async function react(emoji: string) {
+    const prev = mine;
+    const next = prev === emoji ? null : emoji;
+    const nr = { ...reactions };
+    if (prev) nr[prev] = Math.max(0, (nr[prev] || 1) - 1);
+    if (next) nr[next] = (nr[next] || 0) + 1;
+    setReactions(nr); setMine(next);
+    if (next) await apiCall(`/feed/${ev.id}/react`, { method: "POST", token, body: { emoji: next } });
+    else await apiCall(`/feed/${ev.id}/react`, { method: "DELETE", token });
+  }
+  async function loadComments() { const r = await apiCall(`/feed/${ev.id}/comments`, { token }); setComments(r.json?.data || []); }
+  function toggleComments() { const n = !showC; setShowC(n); if (n && comments === null) loadComments(); }
+  async function addComment() {
+    if (!text.trim()) return;
+    await apiCall(`/feed/${ev.id}/comments`, { method: "POST", token, body: { text } });
+    setText(""); setCc((c) => c + 1); loadComments();
+  }
+
+  const when = new Date(ev.created_at).toLocaleDateString("vi-VN", { day: "numeric", month: "short" });
+  const initial = (ev.user.name || "?").slice(0, 1).toUpperCase();
+  return (
+    <div className="feed-card">
+      <div className="feed-head">
+        <span className="feed-av">{initial}</span>
+        <div className="fu"><b>{ev.is_me ? "Bạn" : ev.user.name}</b><small>@{ev.user.handle} · {when}</small></div>
+        <span style={{ fontSize: 18 }}>🏅</span>
+      </div>
+      <div className="feed-body"><span className="fi">{ev.icon}</span><span className="ft">{ev.title}</span></div>
+      <div className="react-row">
+        {REACTIONS.map((em) => (
+          <button key={em} className={`react-btn${mine === em ? " on" : ""}`} onClick={() => react(em)}>
+            {em}{reactions[em] ? <span className="rc">{reactions[em]}</span> : null}
+          </button>
+        ))}
+      </div>
+      <button className="cmt-toggle" onClick={toggleComments}>💬 {cc > 0 ? `${cc} lời chúc` : "Viết lời chúc"}</button>
+      {showC && (
+        <>
+          {comments === null ? <div className="cmt" style={{ marginTop: 8 }}>Đang tải…</div> : (
+            <div className="cmt-list">
+              {comments.length === 0 && <div className="cmt" style={{ color: "var(--faint)" }}>Chưa có lời chúc nào.</div>}
+              {comments.map((c) => <div className="cmt" key={c.id}><b>{c.user.name}</b> {c.text}<span className="ch">@{c.user.handle}</span></div>)}
+            </div>
+          )}
+          <div className="cmt-input">
+            <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Chúc mừng / hỏi thăm…" onKeyDown={(e) => e.key === "Enter" && addComment()} />
+            <button onClick={addComment}>Gửi</button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function FeedView({ token }: { token: string }) {
+  const [items, setItems] = useState<any[] | null>(null);
+  useEffect(() => { apiCall("/feed", { token }).then((r) => setItems(r.json?.data || [])); }, [token]);
+  if (items === null) return <div className="center-screen">Đang tải…</div>;
+  if (items.length === 0) return <div className="ov-note">Chưa có hoạt động nào. Đạt mốc chuỗi (7, 14, 30… ngày) sẽ tự đăng lên đây để bạn bè chúc mừng.</div>;
+  return <div>{items.map((ev) => <FeedCard key={ev.id} ev={ev} token={token} />)}</div>;
+}
+
+function FriendsManage({ token, me }: { token: string; me: any }) {
+  const [friends, setFriends] = useState<any[]>([]);
+  const [reqs, setReqs] = useState<any[]>([]);
+  const [handle, setHandle] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const load = useCallback(async () => {
+    const f = await apiCall("/friends", { token }); setFriends(f.json?.data || []);
+    const r = await apiCall("/friends/requests", { token }); setReqs(r.json?.data || []);
+  }, [token]);
+  useEffect(() => { load(); }, [load]);
+
+  async function add() {
+    if (!handle.trim()) return;
+    const r = await apiCall("/friends", { method: "POST", token, body: { handle: handle.trim() } });
+    setMsg(r.status === 201 || r.status === 200 ? "✓ Đã gửi lời mời!" : (r.json?.error?.message || "Lỗi"));
+    setHandle(""); load(); setTimeout(() => setMsg(""), 3000);
+  }
+  async function accept(id: string) { await apiCall(`/friends/${id}`, { method: "PATCH", token }); load(); }
+  async function remove(id: string) { await apiCall(`/friends/${id}`, { method: "DELETE", token }); load(); }
+
+  return (
+    <>
+      <div className="handle-box">
+        <span style={{ fontSize: 18 }}>👤</span>
+        <span className="hh">@{me?.handle || "…"}</span>
+        <span style={{ fontSize: 11, color: "var(--muted)" }}>chia sẻ để kết bạn</span>
+      </div>
+      <div className="cmt-input" style={{ marginBottom: 12 }}>
+        <input value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="Nhập @handle bạn bè" onKeyDown={(e) => e.key === "Enter" && add()} />
+        <button onClick={add}>Kết bạn</button>
+      </div>
+      {msg && <div className="mood-note-saved" style={{ marginBottom: 10 }}>{msg}</div>}
+
+      {reqs.length > 0 && (
+        <>
+          <div className="block-title">Lời mời ({reqs.length})</div>
+          {reqs.map((r) => (
+            <div className="frow" key={r.friendship_id}>
+              <span className="feed-av">{(r.name || "?").slice(0, 1).toUpperCase()}</span>
+              <div className="fu"><b>{r.name}</b><small>@{r.handle}</small></div>
+              <button className="fbtn acc" onClick={() => accept(r.friendship_id)}>Chấp nhận</button>
+              <button className="fbtn dec" onClick={() => remove(r.friendship_id)}>×</button>
+            </div>
+          ))}
+        </>
+      )}
+
+      <div className="block-title">Bạn bè ({friends.length})</div>
+      {friends.length === 0 && <div className="ov-note">Chưa có bạn nào. Chia sẻ @handle của bạn để kết nối.</div>}
+      {friends.map((f) => (
+        <div className="frow" key={f.friendship_id}>
+          <span className="feed-av">{(f.name || "?").slice(0, 1).toUpperCase()}</span>
+          <div className="fu"><b>{f.name}</b><small>@{f.handle}</small></div>
+          <button className="fbtn dec" onClick={() => remove(f.friendship_id)}>Hủy</button>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function FriendsTab({ token, me }: { token: string; me: any }) {
+  const [view, setView] = useState<"feed" | "friends">("feed");
+  return (
+    <>
+      <div className="section-title">Cộng đồng</div>
+      <div className="seg2">
+        <button className={view === "feed" ? "on" : ""} onClick={() => setView("feed")}>Bảng tin</button>
+        <button className={view === "friends" ? "on" : ""} onClick={() => setView("friends")}>Bạn bè</button>
+      </div>
+      {view === "feed" ? <FeedView token={token} /> : <FriendsManage token={token} me={me} />}
+    </>
   );
 }
 

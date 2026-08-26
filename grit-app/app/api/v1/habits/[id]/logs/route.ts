@@ -143,6 +143,20 @@ export const POST = handler(async (req, ctx: { params: { id: string } }) => {
       },
     });
 
+    // Đạt mốc chuỗi → đăng lên bảng tin để bạn bè chúc mừng.
+    const MILESTONES = new Set([7, 14, 30, 50, 100, 150, 200, 300, 365]);
+    if (recomputed.currentStreak > habit.currentStreak && MILESTONES.has(recomputed.currentStreak)) {
+      await tx.activityEvent.create({
+        data: {
+          userId: auth.user.id,
+          type: "streak_milestone",
+          title: `${habit.name} · chuỗi ${recomputed.currentStreak} ngày!`,
+          icon: habit.icon,
+          value: recomputed.currentStreak,
+        },
+      });
+    }
+
     return { log, streak: recomputed, balance, earned };
   });
 

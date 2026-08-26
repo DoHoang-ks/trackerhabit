@@ -321,6 +321,39 @@ input:focus, select:focus { outline: 2px solid var(--ember); outline-offset: 1px
 .hy-legend { display: flex; align-items: center; gap: 6px; justify-content: flex-end; margin-top: 8px; font-size: 9px; color: var(--muted); font-family: "IBM Plex Mono", monospace; }
 .hy-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; border: 1px solid var(--line); }
 
+/* ===== Social (feed + friends) ===== */
+.feed-card { border: 1px solid var(--line); border-radius: 16px; padding: 14px; background: var(--panel); margin-bottom: 10px; }
+.feed-head { display: flex; align-items: center; gap: 10px; }
+.feed-av { width: 36px; height: 36px; border-radius: 50%; flex: none; display: grid; place-items: center; font-size: 16px; background: var(--ember-glow); color: var(--ember-deep); font-family: "Archivo", sans-serif; font-weight: 800; }
+.feed-head .fu { flex: 1; min-width: 0; }
+.feed-head .fu b { font-size: 13.5px; display: block; }
+.feed-head .fu small { font-size: 11px; color: var(--faint); font-family: "IBM Plex Mono", monospace; }
+.feed-body { display: flex; align-items: center; gap: 10px; margin: 12px 0; padding: 12px; border-radius: 12px; background: var(--panel-2); }
+.feed-body .fi { font-size: 26px; }
+.feed-body .ft { font-family: "Archivo", sans-serif; font-weight: 700; font-size: 15px; }
+.react-row { display: flex; gap: 8px; }
+.react-btn { border: 1px solid var(--line-strong); background: var(--panel); border-radius: 999px; padding: 6px 12px; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; font-family: inherit; color: var(--ink); }
+.react-btn.on { border-color: var(--ember); background: var(--ember-glow); }
+.react-btn .rc { font-size: 12px; font-weight: 700; color: var(--muted); font-family: "IBM Plex Mono", monospace; }
+.cmt-toggle { background: none; border: 0; color: var(--muted); font-size: 12.5px; cursor: pointer; margin-top: 10px; padding: 0; }
+.cmt-list { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.cmt { font-size: 13px; }
+.cmt b { color: var(--ink); }
+.cmt .ch { color: var(--faint); font-size: 11px; font-family: "IBM Plex Mono", monospace; margin-left: 4px; }
+.cmt-input { display: flex; gap: 8px; margin-top: 10px; }
+.cmt-input input { flex: 1; padding: 9px 12px; }
+.cmt-input button { border: 0; background: var(--ember); color: #fff; border-radius: 10px; padding: 0 14px; font-weight: 700; cursor: pointer; }
+
+.handle-box { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 14px; background: var(--ember-glow); border: 1px solid var(--ember); margin-bottom: 12px; }
+.handle-box .hh { font-family: "Archivo", sans-serif; font-weight: 800; font-size: 16px; color: var(--ember-deep); flex: 1; }
+.frow { display: flex; align-items: center; gap: 11px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); margin-bottom: 8px; }
+.frow .fu { flex: 1; min-width: 0; }
+.frow .fu b { font-size: 13.5px; display: block; }
+.frow .fu small { font-size: 11px; color: var(--faint); font-family: "IBM Plex Mono", monospace; }
+.frow .fbtn { border: 0; border-radius: 9px; padding: 7px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.frow .fbtn.acc { background: var(--good); color: #fff; }
+.frow .fbtn.dec { background: var(--panel-2); color: var(--muted); }
+
 /* ===== Mood ===== */
 .mood-card { padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel); margin: 14px 0 4px; }
 .mood-card .ml { font-size: 13px; color: var(--muted); display: block; margin-bottom: 10px; }
