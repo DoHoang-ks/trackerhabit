@@ -17,7 +17,7 @@
   --good-soft: rgba(47, 158, 68, 0.14);
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --ground: #0d1017;
     --panel: #161b24;
     --panel-2: #1d2431;
@@ -35,6 +35,24 @@
     --good: #51cf66;
     --good-soft: rgba(81, 207, 102, 0.16);
   }
+}
+:root[data-theme="dark"] {
+  --ground: #0d1017;
+  --panel: #161b24;
+  --panel-2: #1d2431;
+  --ink: #eef1f6;
+  --ink-soft: #c4ccd8;
+  --muted: #8b94a4;
+  --faint: #5e6879;
+  --line: #262e3b;
+  --line-strong: #333d4d;
+  --ember: #fb7332;
+  --ember-deep: #ea580c;
+  --ember-glow: rgba(251, 115, 50, 0.2);
+  --ice: #35b6d8;
+  --ice-soft: rgba(53, 182, 216, 0.16);
+  --good: #51cf66;
+  --good-soft: rgba(81, 207, 102, 0.16);
 }
 
 * { box-sizing: border-box; }
@@ -302,6 +320,17 @@ input:focus, select:focus { outline: 2px solid var(--ember); outline-offset: 1px
 .hy .hc.froze { background: var(--ice); border-color: transparent; }
 .hy-legend { display: flex; align-items: center; gap: 6px; justify-content: flex-end; margin-top: 8px; font-size: 9px; color: var(--muted); font-family: "IBM Plex Mono", monospace; }
 .hy-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; border: 1px solid var(--line); }
+
+/* ===== Settings (premium) ===== */
+.set-block { margin-bottom: 18px; }
+.set-label { font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin: 0 4px 8px; }
+.seg3 { display: flex; gap: 4px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 4px; }
+.seg3 button { flex: 1; border: 0; background: none; padding: 10px; border-radius: 9px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); font-family: inherit; }
+.seg3 button.on { background: var(--panel); color: var(--ember); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.accent-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.brand-mark.clickable { cursor: pointer; border: 0; padding: 0; }
+.set-field { margin-top: 4px; }
+.about { text-align: center; color: var(--faint); font-size: 11px; font-family: "IBM Plex Mono", monospace; margin-top: 8px; }
 
 /* ===== Templates & onboarding ===== */
 .tpl-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }

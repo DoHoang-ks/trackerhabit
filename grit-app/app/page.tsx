@@ -33,6 +33,29 @@ function daysAgoLocal(n: number): string { const d = new Date(); d.setDate(d.get
 function weekStartLocal(): string { const d = new Date(); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow); return d.toLocaleDateString("en-CA"); }
 function tint(hex: string, pct = 16) { return `color-mix(in srgb, ${hex} ${pct}%, var(--panel))`; }
 
+const ACCENTS = ["#ea580c", "#e11d48", "#7c3aed", "#2563eb", "#0891b2", "#059669"]; // [0] = mặc định
+function hexToRgba(hex: string, a: number) {
+  const n = parseInt(hex.replace("#", ""), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+function applyTheme(t: string) {
+  const root = document.documentElement;
+  if (t === "light" || t === "dark") root.setAttribute("data-theme", t);
+  else root.removeAttribute("data-theme");
+}
+function applyAccent(hex: string | null) {
+  const root = document.documentElement;
+  if (hex && hex !== ACCENTS[0]) {
+    root.style.setProperty("--ember", hex);
+    root.style.setProperty("--ember-deep", hex);
+    root.style.setProperty("--ember-glow", hexToRgba(hex, 0.18));
+  } else {
+    root.style.removeProperty("--ember");
+    root.style.removeProperty("--ember-deep");
+    root.style.removeProperty("--ember-glow");
+  }
+}
+
 async function apiCall(path: string, opts: { method?: string; token?: string | null; body?: unknown } = {}) {
   const res = await fetch(API + path, {
     method: opts.method || "GET",
@@ -58,8 +81,16 @@ export default function App() {
   const [token, setToken] = useState<string | null>(null);
   const [me, setMe] = useState<any>(null);
   const [tab, setTab] = useState<"today" | "habits" | "stats" | "awards">("today");
+  const [settings, setSettings] = useState(false);
 
   useEffect(() => { if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {}); }, []);
+
+  useEffect(() => {
+    try {
+      applyTheme(localStorage.getItem("grit_theme") || "system");
+      applyAccent(localStorage.getItem("grit_accent"));
+    } catch {}
+  }, []);
 
   const loadState = useCallback(async (tk: string) => {
     const meRes = await apiCall("/users/me", { token: tk });
@@ -80,17 +111,25 @@ export default function App() {
   return (
     <main className="app">
       <div className="brand-row">
-        <span className="brand-mark"><Flame size={22} /></span>
+        {view === "app" ? (
+          <button className="brand-mark clickable" onClick={() => setSettings((s) => !s)} aria-label="Cài đặt"><Flame size={22} /></button>
+        ) : (
+          <span className="brand-mark"><Flame size={22} /></span>
+        )}
         <b>Grit</b>
         {me && <span className="who">{me.email}</span>}
-        {me && <button className="linkbtn" onClick={doLogout} style={{ marginLeft: 8 }}>Thoát</button>}
+        {view === "app" && <button className="linkbtn" onClick={() => setSettings((s) => !s)} style={{ marginLeft: 8 }}>{settings ? "Đóng" : "Cài đặt"}</button>}
       </div>
 
       {view === "loading" && <div className="center-screen">Đang tải…</div>}
       {view === "auth" && <AuthView onAuthed={(tk) => { setToken(tk); try { localStorage.setItem(TOKEN_KEY, tk); } catch {} setView("loading"); loadState(tk); }} />}
       {view === "onboarding" && token && <OnboardingView token={token} onDone={() => { setView("loading"); loadState(token); }} />}
 
-      {view === "app" && token && (
+      {view === "app" && token && settings && (
+        <SettingsScreen token={token} me={me} onLogout={doLogout} />
+      )}
+
+      {view === "app" && token && !settings && (
         <>
           <div className="tabcontent">
             {tab === "today" && <TodayTab token={token} goHabits={() => setTab("habits")} />}
@@ -115,6 +154,92 @@ export default function App() {
         </>
       )}
     </main>
+  );
+}
+
+/* ---------------- Settings (premium) ---------------- */
+function SettingsScreen({ token, me, onLogout }: { token: string; me: any; onLogout: () => void }) {
+  const [theme, setTheme] = useState<string>(() => { try { return localStorage.getItem("grit_theme") || "system"; } catch { return "system"; } });
+  const [accent, setAccent] = useState<string>(() => { try { return localStorage.getItem("grit_accent") || ACCENTS[0]; } catch { return ACCENTS[0]; } });
+  const [tz, setTz] = useState(me?.timezone || "Asia/Ho_Chi_Minh");
+  const [cutoff, setCutoff] = useState(me?.dayCutoff || "00:00");
+  const [savedMsg, setSavedMsg] = useState("");
+  const [exporting, setExporting] = useState(false);
+
+  function chooseTheme(t: string) { setTheme(t); applyTheme(t); try { localStorage.setItem("grit_theme", t); } catch {} }
+  function chooseAccent(a: string) { setAccent(a); applyAccent(a); try { localStorage.setItem("grit_accent", a); } catch {} }
+
+  async function saveTime() {
+    await apiCall("/users/me", { method: "PATCH", token, body: { timezone: tz, day_cutoff: cutoff } });
+    setSavedMsg("Đã lưu"); setTimeout(() => setSavedMsg(""), 2500);
+  }
+
+  async function exportData() {
+    setExporting(true);
+    const r = await apiCall("/export", { token });
+    setExporting(false);
+    if (r.status !== 200) return;
+    const blob = new Blob([JSON.stringify(r.json, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "grit-export.json";
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  }
+
+  const TZS = Array.from(new Set([tz, "Asia/Ho_Chi_Minh", "Asia/Bangkok", "Asia/Tokyo", "Asia/Singapore", "Europe/London", "America/New_York", "UTC"]));
+
+  return (
+    <div className="tabcontent">
+      <div className="section-title">Cài đặt</div>
+
+      <div className="set-block">
+        <div className="set-label">Giao diện</div>
+        <div className="seg3">
+          {[["system", "Hệ thống"], ["light", "Sáng"], ["dark", "Tối"]].map(([v, l]) => (
+            <button key={v} className={theme === v ? "on" : ""} onClick={() => chooseTheme(v)}>{l}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="set-block">
+        <div className="set-label">Màu chủ đạo</div>
+        <div className="accent-row">
+          {ACCENTS.map((a) => (
+            <button key={a} className={`pick-color${a === accent ? " on" : ""}`} style={{ background: a, color: a }} onClick={() => chooseAccent(a)} aria-label={a} />
+          ))}
+        </div>
+      </div>
+
+      <div className="set-block">
+        <div className="set-label">Múi giờ & giờ đổi ngày</div>
+        <div className="card">
+          <label>Múi giờ</label>
+          <select value={tz} onChange={(e) => setTz(e.target.value)}>{TZS.map((t) => <option key={t} value={t}>{t}</option>)}</select>
+          <label>Giờ đổi ngày (cut-off)</label>
+          <input type="time" value={cutoff} onChange={(e) => setCutoff(e.target.value)} />
+          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>VD 03:00 nếu hay thức khuya — trước giờ này vẫn tính là "hôm qua".</div>
+          <button className="btn" onClick={saveTime}>Lưu</button>
+          {savedMsg && <div style={{ textAlign: "center", marginTop: 10 }}><span className="saved-tag">✓ {savedMsg}</span></div>}
+        </div>
+      </div>
+
+      <div className="set-block">
+        <div className="set-label">Dữ liệu</div>
+        <div className="card">
+          <button className="btn ghost" onClick={exportData} disabled={exporting}>{exporting ? "Đang xuất…" : "⬇ Xuất dữ liệu (JSON)"}</button>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>Tải toàn bộ mục tiêu, thói quen, lịch sử, nhật ký về máy để sao lưu.</div>
+        </div>
+      </div>
+
+      <div className="set-block">
+        <div className="set-label">Tài khoản</div>
+        <div className="card">
+          <div style={{ fontSize: 14, marginBottom: 12 }}>{me?.email}</div>
+          <button className="btn" style={{ background: "#d64545", boxShadow: "none" }} onClick={onLogout}>Đăng xuất</button>
+        </div>
+      </div>
+
+      <div className="about">Grit Tracker · MVP</div>
+    </div>
   );
 }
 
