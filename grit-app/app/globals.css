@@ -303,6 +303,37 @@ input:focus, select:focus { outline: 2px solid var(--ember); outline-offset: 1px
 .hy-legend { display: flex; align-items: center; gap: 6px; justify-content: flex-end; margin-top: 8px; font-size: 9px; color: var(--muted); font-family: "IBM Plex Mono", monospace; }
 .hy-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; border: 1px solid var(--line); }
 
+/* ===== Templates & onboarding ===== */
+.tpl-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.tpl-item {
+  display: flex; align-items: center; gap: 12px; padding: 11px 13px; border-radius: 14px;
+  border: 1px solid var(--line); background: var(--panel); cursor: pointer; text-align: left; width: 100%; font: inherit; color: inherit;
+}
+.tpl-item.on { border-color: var(--ember); box-shadow: 0 0 0 2px var(--ember-glow); }
+.tpl-item .hicon { width: 38px; height: 38px; border-radius: 11px; }
+.tpl-item .tt { flex: 1; min-width: 0; }
+.tpl-item .tt b { font-size: 14px; display: block; }
+.tpl-item .tt small { font-size: 11px; color: var(--muted); font-family: "IBM Plex Mono", monospace; }
+.tpl-item .tsel { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line-strong); display: grid; place-items: center; flex: none; color: #fff; }
+.tpl-item.on .tsel { background: var(--ember); border-color: var(--ember); }
+.tpl-item .tsel svg { width: 14px; height: 14px; opacity: 0; }
+.tpl-item.on .tsel svg { opacity: 1; }
+
+.commit-btn {
+  position: relative; overflow: hidden; width: 100%; padding: 15px; border: 0; border-radius: 14px; cursor: pointer; margin-top: 16px;
+  background: linear-gradient(150deg, var(--ember), var(--ember-deep)); color: #fff;
+  font-family: "Archivo", sans-serif; font-weight: 700; font-size: 16px; box-shadow: 0 12px 26px -12px var(--ember);
+  touch-action: none; user-select: none;
+}
+.commit-btn:disabled { opacity: .5; }
+.commit-btn .cfill { position: absolute; inset: 0; background: rgba(255,255,255,.28); width: 0; }
+.commit-btn.holding .cfill { width: 100%; transition: width 1.2s linear; }
+.commit-btn .clabel { position: relative; z-index: 1; }
+.commit-hint { text-align: center; font-size: 11.5px; color: var(--muted); margin-top: 8px; }
+
+.tpl-quick { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin: 6px 0 4px; }
+.tpl-quick button { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--panel); color: var(--ink-soft); font-size: 12px; cursor: pointer; font-family: inherit; }
+
 /* ===== Achievements ===== */
 .level-card {
   display: flex; align-items: center; gap: 16px; padding: 18px; border-radius: 18px; margin-bottom: 8px;

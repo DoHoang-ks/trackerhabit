@@ -1,12 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const API = "/api/v1";
 const TOKEN_KEY = "grit_token";
 
 const EMOJIS = ["🔥", "💧", "📖", "🏃", "🧘", "💪", "🥗", "😴", "💊", "🧠", "🎯", "✍️", "🌱", "☀️", "💰", "🎸"];
 const COLORS = ["#ea580c", "#e11d48", "#db2777", "#7c3aed", "#2563eb", "#0891b2", "#059669", "#65a30d", "#ca8a04", "#475569"];
+
+type Tpl = { category: string; name: string; icon: string; color: string; type: "checkbox" | "quantity" | "timer"; target?: number; unit?: string };
+const TEMPLATES: Tpl[] = [
+  { category: "Sức khỏe", name: "Uống 2L nước", icon: "💧", color: "#2563eb", type: "quantity", target: 2000, unit: "ml" },
+  { category: "Sức khỏe", name: "Ngủ trước 23h", icon: "😴", color: "#7c3aed", type: "checkbox" },
+  { category: "Sức khỏe", name: "Ăn đủ rau xanh", icon: "🥗", color: "#059669", type: "checkbox" },
+  { category: "Sức khỏe", name: "Uống vitamin", icon: "💊", color: "#e11d48", type: "checkbox" },
+  { category: "Thể dục", name: "Đi bộ 15 phút", icon: "🏃", color: "#ea580c", type: "timer", target: 900 },
+  { category: "Thể dục", name: "Tập luyện 20 phút", icon: "💪", color: "#ca8a04", type: "timer", target: 1200 },
+  { category: "Thể dục", name: "Vươn vai buổi sáng", icon: "🤸", color: "#0891b2", type: "checkbox" },
+  { category: "Học tập", name: "Đọc 10 trang", icon: "📖", color: "#0891b2", type: "quantity", target: 10, unit: "trang" },
+  { category: "Học tập", name: "Học từ vựng", icon: "🧠", color: "#7c3aed", type: "checkbox" },
+  { category: "Học tập", name: "Luyện tập 30 phút", icon: "🎯", color: "#e11d48", type: "timer", target: 1800 },
+  { category: "Tài chính", name: "Ghi chi tiêu hôm nay", icon: "💰", color: "#65a30d", type: "checkbox" },
+  { category: "Tài chính", name: "Không tiêu bốc đồng", icon: "🛍️", color: "#db2777", type: "checkbox" },
+  { category: "Tinh thần", name: "Thiền 5 phút", icon: "🧘", color: "#0891b2", type: "timer", target: 300 },
+  { category: "Tinh thần", name: "Nhật ký biết ơn", icon: "✍️", color: "#db2777", type: "checkbox" },
+  { category: "Tinh thần", name: "Không MXH buổi sáng", icon: "📵", color: "#475569", type: "checkbox" },
+];
+const TPL_CATEGORIES = Array.from(new Set(TEMPLATES.map((t) => t.category)));
 
 function todayLocal(): string { return new Date().toLocaleDateString("en-CA"); }
 function daysAgoLocal(n: number): string { const d = new Date(); d.setDate(d.getDate() - n); return d.toLocaleDateString("en-CA"); }
@@ -140,41 +160,117 @@ function AuthView({ onAuthed }: { onAuthed: (token: string) => void }) {
 
 /* ---------------- Onboarding ---------------- */
 function OnboardingView({ token, onDone }: { token: string; onDone: () => void }) {
+  const [mode, setMode] = useState<"templates" | "custom">("templates");
+  const [cat, setCat] = useState(TPL_CATEGORIES[0]);
+  const [sel, setSel] = useState<Tpl[]>([]);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [holding, setHolding] = useState(false);
+  const holdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [goal, setGoal] = useState("");
   const [habit, setHabit] = useState("");
   const [icon, setIcon] = useState("🔥");
   const [color, setColor] = useState(COLORS[0]);
-  const [err, setErr] = useState("");
-  const [busy, setBusy] = useState(false);
 
-  async function create() {
+  const keyOf = (t: Tpl) => `${t.category}|${t.name}`;
+  const isSel = (t: Tpl) => sel.some((s) => keyOf(s) === keyOf(t));
+  function toggle(t: Tpl) { setErr(""); setSel((cur) => isSel(t) ? cur.filter((s) => keyOf(s) !== keyOf(t)) : [...cur, t]); }
+
+  async function commitTemplates() {
+    setHolding(false); setBusy(true);
+    try {
+      const cats = Array.from(new Set(sel.map((s) => s.category)));
+      const goalId: Record<string, any> = {};
+      for (const c of cats) {
+        const g = await apiCall("/goals", { method: "POST", token, body: { title: c } });
+        if (g.status !== 201) throw new Error();
+        goalId[c] = g.json.id;
+      }
+      let first = true;
+      for (const t of sel) {
+        const schedule: any = { schedule_type: "daily", weekdays_mask: 127, effective_from: todayLocal(), min_percent: 100 };
+        if (t.type !== "checkbox") { schedule.target_value = t.target; if (t.unit) schedule.target_unit = t.unit; }
+        await apiCall("/habits", { method: "POST", token, body: { goal_id: goalId[t.category], name: t.name, type: t.type, icon: t.icon, color: t.color, is_focus: first, schedule } });
+        first = false;
+      }
+      onDone();
+    } catch { setBusy(false); setErr("Có lỗi khi tạo. Thử lại."); }
+  }
+
+  function holdStart() {
+    if (busy) return;
+    if (!sel.length) { setErr("Chọn ít nhất 1 thói quen để bắt đầu."); return; }
+    setHolding(true);
+    holdRef.current = setTimeout(() => { commitTemplates(); }, 1200);
+  }
+  function holdCancel() {
+    setHolding(false);
+    if (holdRef.current) { clearTimeout(holdRef.current); holdRef.current = null; }
+  }
+
+  async function createCustom() {
     if (!goal.trim() || !habit.trim()) { setErr("Nhập cả mục tiêu và việc hôm nay."); return; }
     setErr(""); setBusy(true);
     const g = await apiCall("/goals", { method: "POST", token, body: { title: goal } });
     if (g.status !== 201) { setBusy(false); setErr("Lỗi tạo mục tiêu."); return; }
-    const h = await apiCall("/habits", {
-      method: "POST", token,
-      body: { goal_id: g.json.id, name: habit, type: "checkbox", is_focus: true, icon, color, schedule: { schedule_type: "daily", weekdays_mask: 127, effective_from: todayLocal() } },
-    });
+    const h = await apiCall("/habits", { method: "POST", token, body: { goal_id: g.json.id, name: habit, type: "checkbox", is_focus: true, icon, color, schedule: { schedule_type: "daily", weekdays_mask: 127, effective_from: todayLocal() } } });
     setBusy(false);
     if (h.status !== 201) { setErr("Lỗi tạo thói quen."); return; }
     onDone();
   }
 
+  if (mode === "custom") {
+    return (
+      <>
+        <h1>Tự tạo thói quen</h1>
+        <p className="sub">Nhập mục tiêu lớn và một việc siêu nhỏ cho hôm nay.</p>
+        <div className="card">
+          <label>Mục tiêu lớn</label>
+          <input value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="VD: Chạy 5km" />
+          <label>Việc hôm nay (siêu nhỏ)</label>
+          <input value={habit} onChange={(e) => setHabit(e.target.value)} placeholder="VD: Xỏ giày & đi bộ 5 phút" />
+          <IconColorPicker icon={icon} color={color} onIcon={setIcon} onColor={setColor} />
+          <button className="btn" onClick={createCustom} disabled={busy}>{busy ? "Đang tạo…" : "Bắt đầu"}</button>
+          <button className="linkbtn" style={{ marginTop: 12, display: "block", marginInline: "auto" }} onClick={() => { setMode("templates"); setErr(""); }}>← Chọn từ mẫu</button>
+          <div className="err">{err}</div>
+        </div>
+      </>
+    );
+  }
+
+  const catItems = TEMPLATES.filter((t) => t.category === cat);
   return (
     <>
-      <h1>Mục tiêu của bạn</h1>
-      <p className="sub">Nhập điều lớn lao, rồi chia thành một việc siêu nhỏ cho hôm nay.</p>
-      <div className="card">
-        <label>Mục tiêu lớn</label>
-        <input value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="VD: Chạy 5km" />
-        <label>Việc hôm nay (siêu nhỏ)</label>
-        <input value={habit} onChange={(e) => setHabit(e.target.value)} placeholder="VD: Xỏ giày & đi bộ 5 phút" />
-        <IconColorPicker icon={icon} color={color} onIcon={setIcon} onColor={setColor} />
-        <button className="btn" onClick={create} disabled={busy}>{busy ? "Đang tạo…" : "Bắt đầu"}</button>
-        <div className="err">{err}</div>
+      <h1>Chọn thói quen để bắt đầu</h1>
+      <p className="sub">Chọn vài việc nhỏ bạn muốn xây — có thể sửa sau.</p>
+      <div className="picker">
+        {TPL_CATEGORIES.map((c) => <button key={c} className={c === cat ? "on" : ""} onClick={() => setCat(c)}>{c}</button>)}
       </div>
-      <div className="footnote">Chỉ 1 việc/ngày — chống tê liệt, dễ bắt đầu.</div>
+      <div className="tpl-list">
+        {catItems.map((t) => (
+          <button type="button" className={`tpl-item${isSel(t) ? " on" : ""}`} key={keyOf(t)} onClick={() => toggle(t)}>
+            <span className="hicon" style={{ background: tint(t.color) }}>{t.icon}</span>
+            <span className="tt">
+              <b>{t.name}</b>
+              <small>{t.type === "checkbox" ? "Đánh dấu" : t.type === "timer" ? `${t.target}s` : `${t.target} ${t.unit || ""}`}</small>
+            </span>
+            <span className="tsel"><CheckMark /></span>
+          </button>
+        ))}
+      </div>
+
+      <button
+        className={`commit-btn${holding ? " holding" : ""}`}
+        onPointerDown={holdStart} onPointerUp={holdCancel} onPointerLeave={holdCancel}
+        disabled={busy}
+      >
+        <span className="cfill" />
+        <span className="clabel">{busy ? "Đang tạo…" : sel.length ? `Giữ để cam kết (${sel.length})` : "Chọn ít nhất 1 thói quen"}</span>
+      </button>
+      <div className="commit-hint">Giữ nút ~1 giây để xác nhận — bạn nghiêm túc với những thói quen này.</div>
+      <button className="linkbtn" style={{ marginTop: 12, display: "block", marginInline: "auto" }} onClick={() => { setMode("custom"); setErr(""); }}>Hoặc tự tạo thủ công →</button>
+      <div className="err" style={{ textAlign: "center" }}>{err}</div>
     </>
   );
 }
@@ -371,6 +467,15 @@ function AddHabit({ token, onClose }: { token: string; onClose: (created: boolea
     <>
       <div className="section-title">Thêm thói quen</div>
       <div className="card">
+        <label>Chọn nhanh từ mẫu</label>
+        <div className="tpl-quick">
+          {TEMPLATES.map((t) => (
+            <button type="button" key={`${t.category}|${t.name}`} onClick={() => {
+              setName(t.name); setType(t.type); setIcon(t.icon); setColor(t.color);
+              setTarget(t.target ? String(t.target) : ""); setUnit(t.unit || "");
+            }}>{t.icon} {t.name}</button>
+          ))}
+        </div>
         <label>Thuộc mục tiêu</label>
         <select value={goalId} onChange={(e) => setGoalId(e.target.value)}>
           {goals.map((g) => <option key={g.id} value={String(g.id)}>{g.title}</option>)}
