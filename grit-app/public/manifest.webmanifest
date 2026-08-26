@@ -9,5 +9,35 @@
   "theme_color": "#ea580c",
   "icons": [
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Điểm danh hôm nay",
+      "short_name": "Hôm nay",
+      "description": "Xem và đánh dấu thói quen hôm nay",
+      "url": "/?tab=today",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Thêm thói quen",
+      "short_name": "Thêm",
+      "description": "Tạo thói quen mới từ mẫu",
+      "url": "/?tab=habits&action=add",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Ghi tâm trạng",
+      "short_name": "Tâm trạng",
+      "description": "Ghi lại tâm trạng hôm nay",
+      "url": "/?tab=today&focus=mood",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Thống kê",
+      "short_name": "Thống kê",
+      "description": "Xem tiến độ & tâm trạng",
+      "url": "/?tab=stats",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    }
   ]
 }

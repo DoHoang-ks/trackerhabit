@@ -52,6 +52,14 @@ function applyTheme(t: string) {
   if (t === "light" || t === "dark") root.setAttribute("data-theme", t);
   else root.removeAttribute("data-theme");
 }
+// App Badge: số việc còn lại hiện trên icon PWA đã cài (no-op nếu chưa cài / không hỗ trợ).
+function setBadge(n: number) {
+  try {
+    const nav = navigator as any;
+    if ("setAppBadge" in nav) { if (n > 0) nav.setAppBadge(n); else nav.clearAppBadge?.(); }
+  } catch {}
+}
+
 function applyAccent(hex: string | null) {
   const root = document.documentElement;
   if (hex && hex !== ACCENTS[0]) {
@@ -91,8 +99,18 @@ export default function App() {
   const [me, setMe] = useState<any>(null);
   const [tab, setTab] = useState<"today" | "habits" | "stats" | "awards">("today");
   const [settings, setSettings] = useState(false);
+  const [autoAdd, setAutoAdd] = useState(false);
 
   useEffect(() => { if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {}); }, []);
+
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search);
+      const t = q.get("tab");
+      if (t && ["today", "habits", "stats", "awards"].includes(t)) setTab(t as any);
+      if (q.get("action") === "add") setAutoAdd(true);
+    } catch {}
+  }, []);
 
   useEffect(() => {
     try {
@@ -142,7 +160,7 @@ export default function App() {
         <>
           <div className="tabcontent">
             {tab === "today" && <TodayTab token={token} goHabits={() => setTab("habits")} />}
-            {tab === "habits" && <HabitsTab token={token} />}
+            {tab === "habits" && <HabitsTab token={token} autoAdd={autoAdd} onConsumeAdd={() => setAutoAdd(false)} />}
             {tab === "stats" && <StatsTab token={token} />}
             {tab === "awards" && <AwardsTab token={token} />}
           </div>
@@ -174,6 +192,15 @@ function SettingsScreen({ token, me, onLogout }: { token: string; me: any; onLog
   const [cutoff, setCutoff] = useState(me?.dayCutoff || "00:00");
   const [savedMsg, setSavedMsg] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [badgeMsg, setBadgeMsg] = useState("");
+
+  async function enableBadge() {
+    try {
+      if ("Notification" in window && Notification.permission !== "granted") await Notification.requestPermission();
+      setBadgeMsg("Đã bật. Cài app vào màn hình chính để thấy số việc trên icon.");
+    } catch { setBadgeMsg("Trình duyệt/thiết bị chưa hỗ trợ huy hiệu."); }
+    setTimeout(() => setBadgeMsg(""), 3500);
+  }
 
   function chooseTheme(t: string) { setTheme(t); applyTheme(t); try { localStorage.setItem("grit_theme", t); } catch {} }
   function chooseAccent(a: string) { setAccent(a); applyAccent(a); try { localStorage.setItem("grit_accent", a); } catch {} }
@@ -228,6 +255,15 @@ function SettingsScreen({ token, me, onLogout }: { token: string; me: any; onLog
           <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>VD 03:00 nếu hay thức khuya — trước giờ này vẫn tính là "hôm qua".</div>
           <button className="btn" onClick={saveTime}>Lưu</button>
           {savedMsg && <div style={{ textAlign: "center", marginTop: 10 }}><span className="saved-tag">✓ {savedMsg}</span></div>}
+        </div>
+      </div>
+
+      <div className="set-block">
+        <div className="set-label">Widget & huy hiệu icon</div>
+        <div className="card">
+          <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 10 }}>Cài app vào màn hình chính (Chia sẻ → Thêm vào Màn hình chính), rồi bật huy hiệu để thấy <b>số việc còn lại</b> ngay trên icon. Long-press icon để mở nhanh (Hôm nay / Thêm / Tâm trạng).</div>
+          <button className="btn ghost" onClick={enableBadge}>Bật huy hiệu trên icon</button>
+          {badgeMsg && <div style={{ textAlign: "center", marginTop: 10 }}><span className="saved-tag">{badgeMsg}</span></div>}
         </div>
       </div>
 
@@ -539,6 +575,11 @@ function TodayTab({ token, goHabits }: { token: string; goHabits: () => void }) 
   }, [token]);
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    if (!items) return;
+    setBadge(items.filter((it) => it.today_status === "pending").length);
+  }, [items]);
+
   async function toggle(it: any) {
     const id = String(it.habit_id);
     const done = it.today_status === "completed" || it.today_status === "partial";
@@ -650,10 +691,12 @@ function TodayTab({ token, goHabits }: { token: string; goHabits: () => void }) 
 }
 
 /* ---------------- Habits (manage) ---------------- */
-function HabitsTab({ token }: { token: string }) {
+function HabitsTab({ token, autoAdd, onConsumeAdd }: { token: string; autoAdd?: boolean; onConsumeAdd?: () => void }) {
   const [items, setItems] = useState<any[] | null>(null);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
+
+  useEffect(() => { if (autoAdd) { setAdding(true); onConsumeAdd?.(); } }, [autoAdd, onConsumeAdd]);
 
   const load = useCallback(async () => {
     const r = await apiCall("/habits", { token });
