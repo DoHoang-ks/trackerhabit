@@ -33,6 +33,7 @@ function daysAgoLocal(n: number): string { const d = new Date(); d.setDate(d.get
 function weekStartLocal(): string { const d = new Date(); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow); return d.toLocaleDateString("en-CA"); }
 function tint(hex: string, pct = 16) { return `color-mix(in srgb, ${hex} ${pct}%, var(--panel))`; }
 
+const MOODS = ["😞", "😕", "😐", "🙂", "😄"]; // index+1 = giá trị mood
 const ACCENTS = ["#ea580c", "#e11d48", "#7c3aed", "#2563eb", "#0891b2", "#059669"]; // [0] = mặc định
 function hexToRgba(hex: string, a: number) {
   const n = parseInt(hex.replace("#", ""), 16);
@@ -417,9 +418,86 @@ function IconColorPicker({ icon, color, onIcon, onColor }: { icon: string; color
 }
 
 /* ---------------- Today (Grit-style list) ---------------- */
+function MoodWidget({ token }: { token: string }) {
+  const [mood, setMood] = useState<number | null>(null);
+  useEffect(() => {
+    apiCall(`/mood?from=${todayLocal()}&to=${todayLocal()}`, { token }).then((r) => {
+      const row = (r.json?.data || [])[0]; if (row) setMood(row.mood);
+    });
+  }, [token]);
+  async function pick(m: number) { setMood(m); await apiCall("/mood", { method: "POST", token, body: { logged_date: todayLocal(), mood: m } }); }
+  return (
+    <div className="mood-card">
+      <span className="ml">Tâm trạng?</span>
+      <div className="mood-faces">
+        {MOODS.map((f, i) => <button key={i} className={`mood-face${mood === i + 1 ? " on" : ""}`} onClick={() => pick(i + 1)} aria-label={`mood ${i + 1}`}>{f}</button>)}
+      </div>
+    </div>
+  );
+}
+
+function NoteEditor({ token, habitId, initial, onSaved }: { token: string; habitId: string; initial: string | null; onSaved: () => void }) {
+  const [text, setText] = useState(initial || "");
+  const [busy, setBusy] = useState(false);
+  async function save() {
+    setBusy(true);
+    await apiCall(`/habits/${habitId}/logs/${todayLocal()}`, { method: "PATCH", token, body: { note: text } });
+    setBusy(false); onSaved();
+  }
+  return (
+    <div className="note-wrap">
+      <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Ghi chú / cảm nhận hôm nay…" />
+      <button className="btn" style={{ marginTop: 8, padding: 10, fontSize: 14 }} onClick={save} disabled={busy}>{busy ? "Đang lưu…" : "Lưu ghi chú"}</button>
+    </div>
+  );
+}
+
+function FocusTimer({ item, token, onClose, onDone }: { item: any; token: string; onClose: () => void; onDone: () => void }) {
+  const target: number = item.target_value || 60;
+  const [left, setLeft] = useState<number>(target);
+  const [running, setRunning] = useState(true);
+  const [finishing, setFinishing] = useState(false);
+
+  const finish = useCallback(async () => {
+    setFinishing(true);
+    await apiCall(`/habits/${item.habit_id}/logs`, { method: "POST", token, body: { logged_date: todayLocal(), duration_secs: target } });
+    onDone();
+  }, [item.habit_id, target, token, onDone]);
+
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => setLeft((l) => Math.max(0, l - 1)), 1000);
+    return () => clearInterval(id);
+  }, [running]);
+  useEffect(() => { if (left === 0 && !finishing) finish(); }, [left, finishing, finish]);
+
+  const mm = Math.floor(left / 60), ss = left % 60;
+  const C = 2 * Math.PI * 95;
+  const pct = target ? 1 - left / target : 0;
+  return (
+    <div className="timer-overlay">
+      <div className="tname">{item.icon} {item.name}</div>
+      <div className="timer-ring">
+        <svg viewBox="0 0 220 220">
+          <circle cx="110" cy="110" r="95" fill="none" stroke="var(--line)" strokeWidth="12" />
+          <circle cx="110" cy="110" r="95" fill="none" stroke={item.color} strokeWidth="12" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - pct)} />
+        </svg>
+        <div className="tt">{String(mm).padStart(2, "0")}:{String(ss).padStart(2, "0")}</div>
+      </div>
+      <div className="timer-ctrls">
+        <button onClick={() => setRunning((r) => !r)}>{running ? "Tạm dừng" : "Tiếp tục"}</button>
+        <button onClick={finish} disabled={finishing}>Hoàn thành</button>
+        <button onClick={onClose}>Đóng</button>
+      </div>
+    </div>
+  );
+}
+
 function TodayTab({ token, goHabits }: { token: string; goHabits: () => void }) {
   const [items, setItems] = useState<any[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [noteOpen, setNoteOpen] = useState<string | null>(null);
+  const [timerFor, setTimerFor] = useState<any>(null);
 
   const load = useCallback(async () => {
     const r = await apiCall("/dashboard/today", { token });
@@ -450,14 +528,17 @@ function TodayTab({ token, goHabits }: { token: string; goHabits: () => void }) 
   const pct = total ? (doneCount / total) * 100 : 0;
   const C = 2 * Math.PI * 25;
 
-  // nhóm theo mục tiêu
   const groups: Record<string, any[]> = {};
   for (const it of items) { const k = it.goal_title || "Khác"; (groups[k] ||= []).push(it); }
+  const isDoneS = (s: string) => s === "completed" || s === "partial";
 
   return (
     <div className="today-top">
+      {timerFor && <FocusTimer item={timerFor} token={token} onClose={() => setTimerFor(null)} onDone={() => { setTimerFor(null); load(); }} />}
       <div className="hello">Hôm nay</div>
       <div className="date">{new Date().toLocaleDateString("vi-VN", { weekday: "long", day: "numeric", month: "long" })}</div>
+
+      <MoodWidget token={token} />
 
       {total > 0 ? (
         <>
@@ -475,34 +556,53 @@ function TodayTab({ token, goHabits }: { token: string; goHabits: () => void }) 
             </div>
           </div>
 
-          {Object.entries(groups).map(([g, hs]) => (
-            <div key={g}>
-              <div className="group-title">{g}</div>
-              <div className="hlist">
-                {hs.map((it) => {
-                  const done = it.today_status === "completed" || it.today_status === "partial";
-                  const frozen = it.today_status === "frozen";
-                  return (
-                    <div className={`hrow${done ? " is-done" : ""}`} key={it.habit_id}>
-                      <span className="hicon" style={{ background: tint(it.color) }}>{it.icon}</span>
-                      <div className="hbody">
-                        <b>{it.name}</b>
-                        <small><span className="st">🔥{it.current_streak}</span>{it.type !== "checkbox" && it.target_value ? ` · ${it.target_value}${it.type === "timer" ? "s" : " " + (it.target_unit || "")}` : ""}</small>
+          {Object.entries(groups).map(([g, hs]) => {
+            const groupHasDone = hs.some((x) => isDoneS(x.today_status));
+            const cueIdx = groupHasDone ? hs.findIndex((x) => x.today_status === "pending") : -1;
+            return (
+              <div key={g}>
+                <div className="group-title">{g}</div>
+                <div className="hlist">
+                  {hs.map((it, idx) => {
+                    const done = isDoneS(it.today_status);
+                    const frozen = it.today_status === "frozen";
+                    const bad = it.polarity === "bad";
+                    return (
+                      <div key={it.habit_id}>
+                        <div className={`hrow${done ? " is-done" : ""}`}>
+                          <span className="hicon" style={{ background: tint(it.color) }}>{it.icon}</span>
+                          <button className="hbody" onClick={() => done && setNoteOpen(noteOpen === String(it.habit_id) ? null : String(it.habit_id))}>
+                            <b>{it.name}{done && <span className="note-dot">📝</span>}</b>
+                            <small>
+                              <span className="st">🔥{it.current_streak}</span>
+                              {bad && <> · <span className="polar-tag">🚫 tránh</span></>}
+                              {it.type !== "checkbox" && it.target_value ? ` · ${it.target_value}${it.type === "timer" ? "s" : " " + (it.target_unit || "")}` : ""}
+                              {idx === cueIdx && <span className="cue">KẾ TIẾP →</span>}
+                            </small>
+                          </button>
+                          {!done && !frozen && it.type === "timer" && (
+                            <button className="timer-launch" onClick={() => setTimerFor(it)} title="Bắt đầu hẹn giờ" aria-label="Hẹn giờ">▶</button>
+                          )}
+                          {frozen ? (
+                            <span className="check frozen" title="Được Freeze bảo vệ">❄</span>
+                          ) : (
+                            <button className={`check${done ? " done" : ""}`} style={done ? { background: it.color, borderColor: it.color } : undefined}
+                              onClick={() => toggle(it)} disabled={busyId === String(it.habit_id)} aria-label={done ? "Bỏ đánh dấu" : bad ? "Đã tránh hôm nay" : "Hoàn thành"}>
+                              <CheckMark />
+                            </button>
+                          )}
+                        </div>
+                        {done && it.today_note && noteOpen !== String(it.habit_id) && <div className="note-view">“{it.today_note}”</div>}
+                        {done && noteOpen === String(it.habit_id) && (
+                          <NoteEditor token={token} habitId={String(it.habit_id)} initial={it.today_note} onSaved={() => { setNoteOpen(null); load(); }} />
+                        )}
                       </div>
-                      {frozen ? (
-                        <span className="check frozen" title="Được Freeze bảo vệ">❄</span>
-                      ) : (
-                        <button className={`check${done ? " done" : ""}`} style={done ? { background: it.color, borderColor: it.color } : undefined}
-                          onClick={() => toggle(it)} disabled={busyId === String(it.habit_id)} aria-label={done ? "Bỏ đánh dấu" : "Hoàn thành"}>
-                          <CheckMark />
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </>
       ) : (
         <div className="empty-today">
@@ -560,6 +660,7 @@ function AddHabit({ token, onClose }: { token: string; onClose: (created: boolea
   const [type, setType] = useState<"checkbox" | "quantity" | "timer">("checkbox");
   const [target, setTarget] = useState("");
   const [unit, setUnit] = useState("");
+  const [polarity, setPolarity] = useState<"good" | "bad">("good");
   const [icon, setIcon] = useState(EMOJIS[0]);
   const [color, setColor] = useState(COLORS[0]);
   const [allow, setAllow] = useState(0);
@@ -582,7 +683,7 @@ function AddHabit({ token, onClose }: { token: string; onClose: (created: boolea
     }
     const schedule: any = { schedule_type: "daily", weekdays_mask: 127, effective_from: todayLocal(), min_percent: 100 };
     if (type !== "checkbox") { schedule.target_value = Number(target); if (unit) schedule.target_unit = unit; }
-    const h = await apiCall("/habits", { method: "POST", token, body: { goal_id: gid, name, type, is_focus: false, icon, color, weekly_miss_allowance: allow, schedule } });
+    const h = await apiCall("/habits", { method: "POST", token, body: { goal_id: gid, name, type, is_focus: false, icon, color, polarity, weekly_miss_allowance: allow, schedule } });
     setBusy(false);
     if (h.status !== 201) { setErr(h.json?.error?.message || "Lỗi tạo thói quen."); return; }
     onClose(true);
@@ -609,6 +710,11 @@ function AddHabit({ token, onClose }: { token: string; onClose: (created: boolea
         {goalId === "new" && (<><label>Tên mục tiêu mới</label><input value={newGoal} onChange={(e) => setNewGoal(e.target.value)} placeholder="VD: Đọc sách" /></>)}
         <label>Tên thói quen</label>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="VD: Đọc 1 trang" />
+        <label>Tính chất</label>
+        <select value={polarity} onChange={(e) => setPolarity(e.target.value as any)}>
+          <option value="good">Thói quen tốt (muốn xây)</option>
+          <option value="bad">Thói quen xấu (muốn bỏ — "ngày tránh được")</option>
+        </select>
         <label>Loại</label>
         <select value={type} onChange={(e) => setType(e.target.value as any)}>
           <option value="checkbox">Checkbox (đánh dấu xong)</option>
@@ -646,20 +752,21 @@ function HabitEdit({ token, id, onClose }: { token: string; id: string; onClose:
   const [icon, setIcon] = useState(EMOJIS[0]);
   const [color, setColor] = useState(COLORS[0]);
   const [allow, setAllow] = useState(0);
+  const [polarity, setPolarity] = useState<"good" | "bad">("good");
   const [busy, setBusy] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [err, setErr] = useState("");
 
   useEffect(() => {
     apiCall(`/habits/${id}`, { token }).then((r) => {
-      if (r.status === 200) { setHabit(r.json); setName(r.json.name); setFocus(!!r.json.is_focus); setIcon(r.json.icon || "🔥"); setColor(r.json.color || COLORS[0]); setAllow(r.json.weekly_miss_allowance ?? 0); }
+      if (r.status === 200) { setHabit(r.json); setName(r.json.name); setFocus(!!r.json.is_focus); setIcon(r.json.icon || "🔥"); setColor(r.json.color || COLORS[0]); setAllow(r.json.weekly_miss_allowance ?? 0); setPolarity(r.json.polarity || "good"); }
     });
   }, [id, token]);
 
   async function save() {
     if (!name.trim()) { setErr("Tên không được trống."); return; }
     setErr(""); setBusy(true);
-    const r = await apiCall(`/habits/${id}`, { method: "PATCH", token, body: { name, is_focus: focus, icon, color, weekly_miss_allowance: allow } });
+    const r = await apiCall(`/habits/${id}`, { method: "PATCH", token, body: { name, is_focus: focus, icon, color, polarity, weekly_miss_allowance: allow } });
     setBusy(false);
     if (r.status === 200) onClose(true); else setErr(r.json?.error?.message || "Lỗi lưu.");
   }
@@ -685,6 +792,11 @@ function HabitEdit({ token, id, onClose }: { token: string; id: string; onClose:
           <option value={1}>1 lần/tuần vẫn giữ chuỗi</option>
           <option value={2}>2 lần/tuần vẫn giữ chuỗi</option>
           <option value={3}>3 lần/tuần vẫn giữ chuỗi</option>
+        </select>
+        <label>Tính chất</label>
+        <select value={polarity} onChange={(e) => setPolarity(e.target.value as any)}>
+          <option value="good">Thói quen tốt (muốn xây)</option>
+          <option value="bad">Thói quen xấu (muốn bỏ)</option>
         </select>
         <label style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 16, cursor: "pointer" }}>
           <input type="checkbox" checked={focus} onChange={(e) => setFocus(e.target.checked)} style={{ width: "auto" }} />
@@ -712,16 +824,52 @@ function HabitEdit({ token, id, onClose }: { token: string; id: string; onClose:
 }
 
 /* ---------------- Achievements ---------------- */
+function YearReview({ token, onBack }: { token: string; onBack: () => void }) {
+  const [y, setY] = useState<any>(null);
+  useEffect(() => { apiCall("/stats/year-review", { token }).then((r) => setY(r.json)); }, [token]);
+  if (!y) return <div className="center-screen">Đang tổng kết…</div>;
+  const monthName = y.best_month ? (() => { const [yr, mo] = y.best_month.month.split("-"); return `Tháng ${parseInt(mo)}/${yr}`; })() : "—";
+  return (
+    <>
+      <div className="section-title">Xem lại năm 🎉</div>
+      <div className="yr-hero">
+        <div className="big">{y.total_completions}</div>
+        <div className="lbl">lượt hoàn thành trong 1 năm qua</div>
+      </div>
+      <div className="yr-grid">
+        <div className="yr-cell"><b>{y.active_days}</b><small>ngày có hoạt động</small></div>
+        <div className="yr-cell"><b>{y.perfect_days}</b><small>ngày hoàn hảo</small></div>
+        <div className="yr-cell"><b>{y.longest_streak}</b><small>chuỗi dài nhất</small></div>
+        <div className="yr-cell"><b>{y.habits_count}</b><small>thói quen</small></div>
+      </div>
+      {y.best_habit && (
+        <div className="recap" style={{ marginTop: 12 }}>
+          <span className="hicon" style={{ background: tint(y.best_habit.color) }}>{y.best_habit.icon}</span>
+          <div className="rl"><b>Thói quen bền nhất</b><small>{y.best_habit.name} · {y.best_habit.count} lượt</small></div>
+        </div>
+      )}
+      <div className="recap" style={{ marginTop: 10 }}>
+        <div className="num" style={{ color: "var(--ember)", fontSize: 18 }}>🏆</div>
+        <div className="rl"><b>Tháng bùng nổ nhất</b><small>{monthName}{y.best_month ? ` · ${y.best_month.count} lượt` : ""}</small></div>
+      </div>
+      <button className="btn ghost" style={{ marginTop: 16 }} onClick={onBack}>← Quay lại</button>
+    </>
+  );
+}
+
 function AwardsTab({ token }: { token: string }) {
   const [a, setA] = useState<any>(null);
+  const [showYear, setShowYear] = useState(false);
   useEffect(() => { apiCall("/achievements", { token }).then((r) => setA(r.json)); }, [token]);
 
+  if (showYear) return <YearReview token={token} onBack={() => setShowYear(false)} />;
   if (!a) return <div className="center-screen">Đang tải…</div>;
   const pct = a.xp_to_next ? Math.min(100, (a.xp_in_level / a.xp_to_next) * 100) : 100;
 
   return (
     <>
       <div className="section-title">Thành tựu</div>
+      <button className="btn" style={{ marginBottom: 14 }} onClick={() => setShowYear(true)}>🎉 Xem lại năm</button>
       <div className="level-card">
         <div className="level-badge"><small>LEVEL</small>{a.level}</div>
         <div className="level-info">
@@ -756,6 +904,57 @@ const WDN = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 const isoOf = (d: Date) => d.toLocaleDateString("en-CA");
 const isGood = (s: string) => s === "completed" || s === "partial";
 const isActed = (s: string) => s === "completed" || s === "partial" || s === "missed";
+
+function MonthCalendar({ map, color }: { map: Map<string, string>; color: string }) {
+  const [ref, setRef] = useState(() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; });
+  const y = ref.getFullYear(), m = ref.getMonth();
+  const startDow = (new Date(y, m, 1).getDay() + 6) % 7;
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const cells: Array<{ day?: number; st?: string }> = [];
+  for (let i = 0; i < startDow; i++) cells.push({});
+  for (let d = 1; d <= daysInMonth; d++) cells.push({ day: d, st: map.get(new Date(y, m, d).toLocaleDateString("en-CA")) });
+  const DOW = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
+  return (
+    <>
+      <div className="cal-head">
+        <button onClick={() => setRef(new Date(y, m - 1, 1))} aria-label="Tháng trước">‹</button>
+        <b>Tháng {m + 1}/{y}</b>
+        <button onClick={() => setRef(new Date(y, m + 1, 1))} aria-label="Tháng sau">›</button>
+      </div>
+      <div className="cal-grid">
+        {DOW.map((d) => <div className="cal-dow" key={d}>{d}</div>)}
+        {cells.map((c, i) => {
+          if (!c.day) return <div className="cal-cell empty" key={i} />;
+          const done = c.st === "completed" || c.st === "partial";
+          const cls = done ? "done" : c.st === "missed" ? "missed" : c.st === "frozen" ? "froze" : "";
+          return <div className={`cal-cell ${cls}`} key={i} style={done ? { background: color } : undefined}>{c.day}</div>;
+        })}
+      </div>
+    </>
+  );
+}
+
+function MoodCorrelation({ token }: { token: string }) {
+  const [d, setD] = useState<any>(null);
+  useEffect(() => { apiCall("/stats/mood", { token }).then((r) => setD(r.json)); }, [token]);
+  if (!d || d.entries === 0) return null;
+  return (
+    <>
+      <div className="block-title">Tâm trạng ↔ hoàn thành</div>
+      <div className="corr">
+        <div className="c"><b>{d.good_mood_rate ?? "—"}%</b><small>ngày tâm trạng tốt 🙂😄</small></div>
+        <div className="c"><b>{d.low_mood_rate ?? "—"}%</b><small>ngày tâm trạng thấp 😞😕</small></div>
+      </div>
+      <div className="best-day" style={{ marginTop: 10 }}>
+        {d.good_mood_rate != null && d.low_mood_rate != null
+          ? (d.good_mood_rate >= d.low_mood_rate
+              ? <>Khi vui, bạn hoàn thành nhiều hơn <b>{d.good_mood_rate - d.low_mood_rate}%</b> so với ngày buồn.</>
+              : <>Thú vị: ngày tâm trạng thấp bạn lại chăm hơn <b>{d.low_mood_rate - d.good_mood_rate}%</b>.</>)
+          : "Ghi tâm trạng vài ngày để thấy tương quan."}
+      </div>
+    </>
+  );
+}
 
 function StatsTab({ token }: { token: string }) {
   const [mode, setMode] = useState<"overview" | "single">("overview");
@@ -837,6 +1036,8 @@ function OverviewStats({ token }: { token: string }) {
       <div className="hy-legend">
         Ít <i /><i style={{ background: lvlBg(1), borderColor: "transparent" }} /><i style={{ background: lvlBg(2), borderColor: "transparent" }} /><i style={{ background: color, borderColor: "transparent" }} /> Nhiều
       </div>
+
+      <MoodCorrelation token={token} />
     </>
   );
 }
@@ -937,6 +1138,9 @@ function SingleStats({ token }: { token: string }) {
             Ít <i /><i style={{ background: color, opacity: 0.55, borderColor: "transparent" }} /><i style={{ background: color, borderColor: "transparent" }} /> Nhiều
             <i style={{ background: "var(--ice)", borderColor: "transparent", marginLeft: 6 }} /> ❄
           </div>
+
+          <div className="block-title">Lịch tháng</div>
+          <MonthCalendar map={map} color={color} />
         </>
       )}
     </>

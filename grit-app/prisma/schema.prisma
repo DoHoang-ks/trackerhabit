@@ -48,6 +48,11 @@ enum FreezeReason {
   admin_adjust
 }
 
+enum HabitPolarity {
+  good // thói quen muốn xây (hoàn thành = làm)
+  bad  // thói quen muốn bỏ (hoàn thành = tránh được)
+}
+
 model User {
   id           BigInt   @id @default(autoincrement())
   email        String   @unique
@@ -63,6 +68,7 @@ model User {
   logs        Log[]
   reflections Reflection[]
   freezeLogs  FreezeLedger[]
+  moodLogs    MoodLog[]
 
   @@map("users")
 }
@@ -96,6 +102,8 @@ model Habit {
   isFocus               Boolean   @default(false) @map("is_focus")
   color                 String    @default("#ea580c")
   icon                  String    @default("🔥")
+  polarity              HabitPolarity @default(good)
+  sortOrder             Int       @default(0) @map("sort_order") // thứ tự trong nhóm (habit stacking)
   weeklyMissAllowance   Int       @default(0) @map("weekly_miss_allowance") // số lần được phép bỏ lỡ/tuần mà vẫn giữ chuỗi
   archivedAt            DateTime? @map("archived_at")
 
@@ -147,6 +155,7 @@ model Log {
   status       LogStatus
   value        Decimal?  @db.Decimal(10, 2)
   durationSecs Int?      @map("duration_secs")
+  note         String?   // ghi chú theo ngày khi check-in
   completedAt  DateTime? @map("completed_at")
   source       LogSource @default(manual)
   createdAt    DateTime  @default(now()) @map("created_at")
@@ -193,4 +202,20 @@ model Reflection {
 
   @@unique([userId, goalId, weekStart])
   @@map("reflections")
+}
+
+model MoodLog {
+  id         BigInt   @id @default(autoincrement())
+  userId     BigInt   @map("user_id")
+  loggedDate DateTime @map("logged_date") @db.Date
+  mood       Int // 1..5 (1 = tệ, 5 = tuyệt)
+  note       String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, loggedDate])
+  @@index([userId, loggedDate])
+  @@map("mood_logs")
 }

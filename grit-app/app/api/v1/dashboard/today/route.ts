@@ -18,16 +18,17 @@ export const GET = handler(async (req) => {
 
   const habits = await prisma.habit.findMany({
     where: { userId: auth.user.id, archivedAt: null },
-    orderBy: [{ isFocus: "desc" }, { createdAt: "asc" }],
+    orderBy: [{ isFocus: "desc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
     include: { schedules: { orderBy: { effectiveFrom: "desc" } }, goal: { select: { title: true } } },
   });
 
   const logs = await prisma.log.findMany({
     where: { userId: auth.user.id, loggedDate: toDbDate(day) },
-    select: { habitId: true, status: true },
+    select: { habitId: true, status: true, note: true },
   });
   const statusByHabit = new Map<string, string>();
-  for (const l of logs) statusByHabit.set(l.habitId.toString(), l.status);
+  const noteByHabit = new Map<string, string | null>();
+  for (const l of logs) { statusByHabit.set(l.habitId.toString(), l.status); noteByHabit.set(l.habitId.toString(), l.note); }
 
   const items = habits.map((h) => {
     const sch = resolveSchedule(h.schedules, day);
@@ -39,7 +40,9 @@ export const GET = handler(async (req) => {
       is_focus: h.isFocus,
       color: h.color,
       icon: h.icon,
+      polarity: h.polarity,
       goal_title: h.goal?.title ?? null,
+      today_note: noteByHabit.get(h.id.toString()) ?? null,
       current_streak: h.currentStreak,
       freeze_balance: h.freezeBalance,
       target_value: sch?.targetValue ?? null,

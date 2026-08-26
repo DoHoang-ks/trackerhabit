@@ -42,6 +42,7 @@ const Body = z.object({
   logged_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Định dạng YYYY-MM-DD"),
   value: z.number().nonnegative().optional(),
   duration_secs: z.number().int().nonnegative().optional(),
+  note: z.string().max(1000).optional(),
 });
 
 // POST /habits/:id/logs — check-in (upsert idempotent). Lõi hệ thống.
@@ -83,6 +84,7 @@ export const POST = handler(async (req, ctx: { params: { id: string } }) => {
 
   const value = parsed.data.value ?? null;
   const durationSecs = parsed.data.duration_secs ?? null;
+  const note = parsed.data.note?.trim() || null;
   const status = evaluateCompletion(habit.type, schedule, value, durationSecs);
   const completedAt = status === "completed" || status === "partial" ? new Date() : null;
 
@@ -97,10 +99,11 @@ export const POST = handler(async (req, ctx: { params: { id: string } }) => {
         status,
         value,
         durationSecs,
+        note,
         completedAt,
         source: "manual",
       },
-      update: { status, value, durationSecs, completedAt, source: "manual" },
+      update: { status, value, durationSecs, ...(note !== null ? { note } : {}), completedAt, source: "manual" },
     });
 
     // Tính lại streak tới ngày hiện tại (pending hôm nay không đứt chuỗi).

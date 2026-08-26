@@ -17,7 +17,7 @@ export const GET = handler(async (req) => {
       ...(goalId ? { goalId: BigInt(goalId) } : {}),
       ...(includeArchived ? {} : { archivedAt: null }),
     },
-    orderBy: [{ isFocus: "desc" }, { createdAt: "asc" }],
+    orderBy: [{ isFocus: "desc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
     include: {
       schedules: { orderBy: { effectiveFrom: "desc" } },
     },
@@ -33,6 +33,8 @@ export const GET = handler(async (req) => {
       is_focus: h.isFocus,
       color: h.color,
       icon: h.icon,
+      polarity: h.polarity,
+      sort_order: h.sortOrder,
       weekly_miss_allowance: h.weeklyMissAllowance,
       current_streak: h.currentStreak,
       longest_streak: h.longestStreak,
@@ -70,6 +72,8 @@ const Body = z.object({
   is_focus: z.boolean().default(false),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   icon: z.string().max(8).optional(),
+  polarity: z.enum(["good", "bad"]).optional(),
+  sort_order: z.number().int().optional(),
   weekly_miss_allowance: z.number().int().min(0).max(6).optional(),
   schedule: Schedule,
 });
@@ -110,6 +114,8 @@ export const POST = handler(async (req) => {
       isFocus: b.is_focus,
       ...(b.color ? { color: b.color } : {}),
       ...(b.icon ? { icon: b.icon } : {}),
+      ...(b.polarity ? { polarity: b.polarity } : {}),
+      ...(b.sort_order != null ? { sortOrder: b.sort_order } : {}),
       ...(b.weekly_miss_allowance != null ? { weeklyMissAllowance: b.weekly_miss_allowance } : {}),
       schedules: {
         create: {

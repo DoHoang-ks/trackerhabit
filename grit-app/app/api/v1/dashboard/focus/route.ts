@@ -44,6 +44,7 @@ export const GET = handler(async (req) => {
       type: focusHabit.type,
       color: focusHabit.color,
       icon: focusHabit.icon,
+      polarity: focusHabit.polarity,
       target_value: sch?.targetValue ?? null,
       target_unit: sch?.targetUnit ?? null,
       today_status: log?.status ?? "pending",

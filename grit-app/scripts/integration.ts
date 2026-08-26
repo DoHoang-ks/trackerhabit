@@ -139,6 +139,28 @@ async function main() {
   r = await api("/export", { token });
   check("export 200 + có habits/logs", r.status === 200 && Array.isArray(r.json?.habits) && Array.isArray(r.json?.logs), r.json?.format);
 
+  console.log("\nTính năng mới (note/mood/polarity/year-review)");
+  r = await api(`/habits/${habitId}/logs/${today}`, { method: "PATCH", token, body: { note: "Ghi chú test" } });
+  check("PATCH ghi chú 200", r.status === 200, r.json);
+  r = await api("/dashboard/today", { token });
+  const it1 = r.json?.items?.find((x: any) => String(x.habit_id) === String(habitId));
+  check("today_note lưu & trả về", it1?.today_note === "Ghi chú test", it1?.today_note);
+
+  r = await api("/habits", { method: "POST", token, body: { goal_id: goalId, name: "Không MXH", type: "checkbox", polarity: "bad", schedule: { schedule_type: "daily", weekdays_mask: 127, effective_from: today } } });
+  check("tạo habit polarity=bad 201", r.status === 201 && r.json?.polarity === "bad", r.json?.polarity);
+  const badId = r.json?.id;
+  if (badId) await api(`/habits/${badId}?hard=true`, { method: "DELETE", token }); // dọn để không lệch số đếm sau
+
+  r = await api("/mood", { method: "POST", token, body: { logged_date: today, mood: 4 } });
+  check("POST mood 200/201", r.status === 200 || r.status === 201, r.json);
+  r = await api(`/mood?from=${today}&to=${today}`, { token });
+  check("GET mood có bản ghi", (r.json?.data?.length ?? 0) >= 1);
+
+  r = await api("/stats/year-review", { token });
+  check("year-review 200", r.status === 200 && typeof r.json?.total_completions === "number", r.json);
+  r = await api("/stats/mood", { token });
+  check("stats/mood 200", r.status === 200, r.json);
+
   console.log("\nUndo");
   r = await api(`/habits/${habitId}/logs/${today}`, { method: "DELETE", token });
   check("undo 200", r.status === 200, r.json);

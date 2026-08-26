@@ -28,6 +28,8 @@ export const GET = handler(async (req, ctx: { params: { id: string } }) => {
     is_focus: habit.isFocus,
     color: habit.color,
     icon: habit.icon,
+    polarity: habit.polarity,
+    sort_order: habit.sortOrder,
     weekly_miss_allowance: habit.weeklyMissAllowance,
     current_streak: habit.currentStreak,
     longest_streak: habit.longestStreak,
@@ -50,6 +52,8 @@ const Patch = z.object({
   is_focus: z.boolean().optional(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   icon: z.string().max(8).optional(),
+  polarity: z.enum(["good", "bad"]).optional(),
+  sort_order: z.number().int().optional(),
   weekly_miss_allowance: z.number().int().min(0).max(6).optional(),
 });
 
@@ -66,7 +70,7 @@ export const PATCH = handler(async (req, ctx: { params: { id: string } }) => {
 
   const parsed = Patch.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return fail("VALIDATION_ERROR", "Dữ liệu không hợp lệ.");
-  const { name, is_focus, color, icon, weekly_miss_allowance } = parsed.data;
+  const { name, is_focus, color, icon, polarity, sort_order, weekly_miss_allowance } = parsed.data;
 
   const updated = await prisma.$transaction(async (tx) => {
     // Đặt làm Focus → bỏ Focus các habit khác của user (chỉ 1 Focus tại một thời điểm).
@@ -83,9 +87,11 @@ export const PATCH = handler(async (req, ctx: { params: { id: string } }) => {
         ...(is_focus !== undefined ? { isFocus: is_focus } : {}),
         ...(color !== undefined ? { color } : {}),
         ...(icon !== undefined ? { icon } : {}),
+        ...(polarity !== undefined ? { polarity } : {}),
+        ...(sort_order !== undefined ? { sortOrder: sort_order } : {}),
         ...(weekly_miss_allowance !== undefined ? { weeklyMissAllowance: weekly_miss_allowance } : {}),
       },
-      select: { id: true, name: true, isFocus: true, color: true, icon: true, weeklyMissAllowance: true },
+      select: { id: true, name: true, isFocus: true, color: true, icon: true, polarity: true, sortOrder: true, weeklyMissAllowance: true },
     });
   });
   return ok(updated);
