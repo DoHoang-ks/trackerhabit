@@ -179,11 +179,13 @@ export default function App() {
       {view === "app" && token && !settings && (
         <>
           <div className="tabcontent">
-            {tab === "today" && <TodayTab token={token} goHabits={() => setTab("habits")} />}
-            {tab === "habits" && <HabitsTab token={token} autoAdd={autoAdd} onConsumeAdd={() => setAutoAdd(false)} />}
-            {tab === "stats" && <StatsTab token={token} />}
-            {tab === "awards" && <AwardsTab token={token} />}
-            {tab === "friends" && <FriendsTab token={token} me={me} />}
+            <div className="pane" key={tab}>
+              {tab === "today" && <TodayTab token={token} goHabits={() => setTab("habits")} />}
+              {tab === "habits" && <HabitsTab token={token} autoAdd={autoAdd} onConsumeAdd={() => setAutoAdd(false)} />}
+              {tab === "stats" && <StatsTab token={token} />}
+              {tab === "awards" && <AwardsTab token={token} />}
+              {tab === "friends" && <FriendsTab token={token} me={me} />}
+            </div>
           </div>
           <nav className="tabbar">
             <button className={tab === "today" ? "on" : ""} onClick={() => setTab("today")}>
