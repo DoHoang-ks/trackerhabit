@@ -1292,6 +1292,37 @@ const isoOf = (d: Date) => d.toLocaleDateString("en-CA");
 const isGood = (s: string) => s === "completed" || s === "partial";
 const isActed = (s: string) => s === "completed" || s === "partial" || s === "missed";
 
+// Biểu đồ đường xu hướng (SVG). points = % (0-100), trái→phải cũ→mới.
+function TrendLine({ points, color }: { points: number[]; color: string }) {
+  if (points.length < 2) return <div className="ov-note">Chưa đủ dữ liệu để vẽ xu hướng.</div>;
+  const W = 300, H = 96, pad = 8, n = points.length;
+  const x = (i: number) => pad + (i / (n - 1)) * (W - 2 * pad);
+  const y = (v: number) => H - pad - (v / 100) * (H - 2 * pad);
+  const line = points.map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const area = `${line} L${x(n - 1).toFixed(1)},${H - pad} L${x(0).toFixed(1)},${H - pad} Z`;
+  return (
+    <svg className="trend-svg" viewBox={`0 0 ${W} ${H}`}>
+      <line x1={pad} y1={y(50)} x2={W - pad} y2={y(50)} stroke="var(--line)" strokeWidth="1" strokeDasharray="3 3" />
+      <path d={area} fill={color} fillOpacity={0.13} />
+      <path d={line} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={x(n - 1)} cy={y(points[n - 1])} r="4" fill={color} />
+    </svg>
+  );
+}
+
+// Chia mảng ngày (đã sắp xếp) thành các tuần và tính % mỗi tuần.
+function weeklyRates(days: any[], dueOf: (d: any) => number, doneOf: (d: any) => number, weeks = 12): number[] {
+  const last = days.slice(-weeks * 7);
+  const out: number[] = [];
+  for (let i = 0; i < last.length; i += 7) {
+    const c = last.slice(i, i + 7);
+    const due = c.reduce((a, x) => a + dueOf(x), 0);
+    const done = c.reduce((a, x) => a + doneOf(x), 0);
+    out.push(due ? Math.round((done / due) * 100) : 0);
+  }
+  return out;
+}
+
 function MonthCalendar({ map, color }: { map: Map<string, string>; color: string }) {
   const [ref, setRef] = useState(() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; });
   const y = ref.getFullYear(), m = ref.getMonth();
@@ -1433,6 +1464,8 @@ function OverviewStats({ token }: { token: string }) {
   const color = "#ea580c";
   const trend = ov.this_week_done - ov.last_week_done;
   const bestWd = ov.weekday.some((r: number) => r > 0) ? ov.weekday.indexOf(Math.max(...ov.weekday)) : -1;
+  const rateWin = (nn: number) => { const s = ov.days.slice(-nn); const due = s.reduce((a: number, x: any) => a + x.due, 0); const done = s.reduce((a: number, x: any) => a + x.done, 0); return due ? Math.round((done / due) * 100) : 0; };
+  const weeks = weeklyRates(ov.days, (d: any) => d.due, (d: any) => d.done, 12);
   const lvlBg = (lvl: number) => lvl === 3 ? color : lvl === 2 ? `color-mix(in srgb, ${color} 60%, var(--panel-2))` : lvl === 1 ? `color-mix(in srgb, ${color} 30%, var(--panel-2))` : undefined;
 
   // heatmap gộp: cường độ = done/due mỗi ngày; canh thứ Hai
@@ -1478,6 +1511,17 @@ function OverviewStats({ token }: { token: string }) {
         ))}
       </div>
       {bestWd >= 0 && <div className="best-day">Cả nhóm làm tốt nhất vào <b>{WDN[bestWd] === "CN" ? "Chủ Nhật" : "Thứ " + WDN[bestWd].slice(1)}</b> ({ov.weekday[bestWd]}%).</div>}
+
+      <div className="block-title">Tỉ lệ hoàn thành</div>
+      <div className="rate-row">
+        <div className="rc"><b>{rateWin(30)}%</b><small>30 ngày</small></div>
+        <div className="rc"><b>{rateWin(60)}%</b><small>60 ngày</small></div>
+        <div className="rc"><b>{rateWin(90)}%</b><small>90 ngày</small></div>
+      </div>
+
+      <div className="block-title">Xu hướng 12 tuần</div>
+      <TrendLine points={weeks} color={color} />
+      <div className="trend-cap"><span>~12 tuần trước</span><span>tuần này</span></div>
 
       <div className="block-title">1 năm qua — đậm = nhiều thói quen hoàn thành/ngày</div>
       <div className="hy-wrap">
@@ -1533,6 +1577,8 @@ function SingleStats({ token }: { token: string }) {
   for (const x of days) if (isActed(x.st)) { wd[x.wd].a++; if (isGood(x.st)) wd[x.wd].g++; }
   const wdRate = wd.map((w) => (w.a ? Math.round(w.g / w.a * 100) : 0));
   const bestWd = wdRate.some((r) => r > 0) ? wdRate.indexOf(Math.max(...wdRate)) : -1;
+  const rateWinS = (nn: number) => { const s = days.slice(-nn); const a = s.filter((x) => isActed(x.st)).length; const g = s.filter((x) => isGood(x.st)).length; return a ? Math.round((g / a) * 100) : 0; };
+  const weeksS = weeklyRates(days, (d: any) => (isActed(d.st) ? 1 : 0), (d: any) => (isGood(d.st) ? 1 : 0), 12);
 
   const thisWeek = days.slice(-7).filter((x) => isGood(x.st)).length;
   const lastWeek = days.slice(-14, -7).filter((x) => isGood(x.st)).length;
@@ -1573,6 +1619,17 @@ function SingleStats({ token }: { token: string }) {
             ))}
           </div>
           {bestWd >= 0 && <div className="best-day">Bạn làm tốt nhất vào <b>{WDN[bestWd] === "CN" ? "Chủ Nhật" : "Thứ " + WDN[bestWd].slice(1)}</b> ({wdRate[bestWd]}%).</div>}
+
+          <div className="block-title">Tỉ lệ hoàn thành</div>
+          <div className="rate-row">
+            <div className="rc"><b>{rateWinS(30)}%</b><small>30 ngày</small></div>
+            <div className="rc"><b>{rateWinS(60)}%</b><small>60 ngày</small></div>
+            <div className="rc"><b>{rateWinS(90)}%</b><small>90 ngày</small></div>
+          </div>
+
+          <div className="block-title">Xu hướng 12 tuần</div>
+          <TrendLine points={weeksS} color={color} />
+          <div className="trend-cap"><span>~12 tuần trước</span><span>tuần này</span></div>
 
           <div className="block-title">1 năm qua</div>
           <div className="hy-wrap">
